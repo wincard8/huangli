@@ -778,7 +778,17 @@ body{
 
     const heavy = ss.filter(s => HEAVY.includes(s.name));
     const hasDe = ss.some(s => DE_SHEN.includes(s.name));
+    const hardPo = ss.some(s => s.name === '月破' || s.name === '月厌');
+    const shanSha = ss.filter(s => ['劫煞', '灾煞', '月煞', '月刑'].includes(s.name));
+    const jianDay = ss.some(s => s.name === '月建');
     const suppress = heavy.length > 0 && !hasDe;
+
+    /* 卷十明文的两条"遇德减忌"：
+       三煞／月刑「與天德月德天德合月德合併，止忌安撫邊境、選將、訓兵、出師、求醫療病，餘皆不忌」
+       月建「與天德月德天德合月德合天赦月恩四相併，止忌營建宫室…破土，餘皆不忌」 */
+    const DE_SHA_JI = ['安抚边境', '选将', '训兵', '出师', '求医'];
+    const deSha = hasDe && shanSha.length > 0 && !hardPo && !jianDay;
+    const deJian = hasDe && jianDay && !hardPo;
 
     for (const s of ss) for (const x of s.ji) push(jiSet, x, s.name);
     if (!suppress) {
@@ -791,6 +801,15 @@ body{
     const baiji = [];
     (BAIJI_GAN[dayGan] || []).forEach(x => { baiji.push(x); push(jiSet, x, '百忌日（日干）'); });
     (BAIJI_ZHI[dayZhi] || []).forEach(x => { baiji.push(x); push(jiSet, x, '百忌日（日支）'); });
+
+    /* 遇德减忌：只保留卷十点名的几项（另加百忌日） */
+    if (deSha) {
+      const keep = new Set(DE_SHA_JI.concat(baiji));
+      for (const t of Array.from(jiSet)) if (!keep.has(t)) jiSet.delete(t);
+    } else if (deJian) {
+      const keep = new Set(TUFU_JI.concat(baiji));
+      for (const t of Array.from(jiSet)) if (!keep.has(t)) jiSet.delete(t);
+    }
 
     // 忌克宜
     const conflicts = [];
@@ -1375,7 +1394,7 @@ body{
       '<div class="dress-txt">历法：北京时间，定朔定气，无中气置闰；年柱以立春、月柱以节为界。节气精度约 ±15 分钟，交节近子夜时可能差一日。</div>' +
       '<div class="dress-txt">可靠区间 1900–2100。全部实时推算，没有预生成表；1929 年前中国用平朔与北京地方时，个别农历日可能与旧历书差一天。</div>' +
       '<div class="hr"></div>' +
-      '<div class="mini">未实现：卷十「宜忌等第表」六等加减（故凶日偏严）、天愿月恩四相时德等吉神、年表月表方位、个人本命；财神福神喜神方位各家口诀不一，不列。</div>' +
+      '<div class="mini">未实现：卷十「宜忌等第表」原书为图象，未能获得，故六等算术未复原；已按卷十按语明文补入两条「遇德减忌」——三煞／月刑遇德止忌五项、月建遇德止忌营建类。天愿月恩四相时德等吉神、年表月表方位、个人本命未纳入；财神福神喜神方位各家口诀不一，不列。</div>' +
       '</div></div>' +
 
       '<div class="card"><div class="card-hd"><div class="card-title">历法自检</div><div class="card-more">对照香港天文台</div></div>' +
