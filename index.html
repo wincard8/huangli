@@ -750,6 +750,58 @@ body{
     return [(10 - 2 * s + 12) % 12, (11 - 2 * s + 12) % 12];
   }
 
+  /* --------------------------------------------------------- 卷十「月表」六等
+     数据来源：《钦定协纪辨方书》卷十 月表（原书第 220–221 页），
+     已据影印件校订为结构化表：神煞 → 六个等第各辖哪些月建（0=子 … 11=亥）
+     上 / 上次 / 中 / 中次 / 下 / 下下 */
+  const YUEBIAO = {
+    '平日': [[11], [5], [8], [2, 3, 6, 9], [0, 1, 4, 7, 10], []],
+    '收日': [[2, 8], [], [4, 5, 7, 11], [0, 1, 6, 9, 10], [3], []],
+    '闭日': [[], [], [], [0, 1, 3, 4, 6, 7, 9, 10], [2, 5, 8, 11], []],
+    '劫煞': [[2, 8], [1, 4, 7, 10], [5, 11], [0, 3, 6, 9], [], []],
+    '灾煞': [[], [2, 5, 8, 11], [1, 4, 7, 10], [], [0, 6], [3, 9]],
+    '月煞': [[], [3, 9], [], [0, 6], [1, 2, 4, 5, 7, 8, 10, 11], []],
+    '月刑': [[], [5], [], [1, 2, 4, 9, 10, 11], [0, 3, 6, 7, 8], []],
+    '月害': [[], [], [1, 3, 5, 7, 8, 9, 11], [0, 2, 4, 6, 10], [], []],
+    '月厌': [[], [], [1, 2, 7, 8], [4, 5, 10, 11], [0, 6], [3, 9]],
+    '大时': [[2, 4, 5, 8, 10, 11], [], [1, 7], [0, 6, 9], [3], []],
+    '天吏': [[], [], [2, 5, 8, 11], [1, 3, 4, 6, 7, 9, 10], [0], []]
+  };
+  const GRADE_NAME = ['上', '上次', '中', '中次', '下', '下下'];
+  const GRADE_LEVEL = ['大吉', '吉', '平', '小凶', '凶', '大凶'];
+  const GRADE_LEVEL_N = [-2, -1, 0, 1, 2, 3];
+
+  /* 取当日等第：表中诸煞取最重者；月破固定最下（卷十「破日…诸事不宜」） */
+  function gradeOf(ss, monthZhi) {
+    if (ss.some(s => s.name === '月破')) return { g: 5, from: '月破' };
+    let g = 0, from = null;
+    for (const s of ss) {
+      const col = YUEBIAO[s.name];
+      if (!col) continue;
+      for (let gi = 0; gi < 6; gi++) {
+        if (col[gi].indexOf(monthZhi) >= 0 && gi > g) { g = gi; from = s.name; }
+      }
+    }
+    if (ss.some(s => s.name === '月建') && g < 2) { g = 2; from = '月建'; }
+    return { g, from };
+  }
+
+  /* 六等的行为：按卷十判词
+     上  从宜不从忌
+     上次 遇德从宜不从忌；不遇从宜亦从忌
+     中  遇德从宜不从忌；不遇从忌不从宜
+     中次 遇德从宜亦从忌；不遇从忌不从宜
+     下  遇德从忌不从宜；不遇诸事皆忌
+     下下 遇德亦诸事皆忌 */
+  function policyOf(g, hasDe) {
+    if (g === 0) return 'yi';
+    if (g === 1) return hasDe ? 'yi' : 'both';
+    if (g === 2) return hasDe ? 'yi' : 'ji';
+    if (g === 3) return hasDe ? 'both' : 'ji';
+    if (g === 4) return hasDe ? 'ji' : 'none';
+    return 'none';
+  }
+
   /* --------------------------------------------------------- 主计算 */
   function computeDay(y, m, d) {
     const jdn = gregorianToJDN(y, m, d);
@@ -781,7 +833,10 @@ body{
     const hardPo = ss.some(s => s.name === '月破' || s.name === '月厌');
     const shanSha = ss.filter(s => ['劫煞', '灾煞', '月煞', '月刑'].includes(s.name));
     const jianDay = ss.some(s => s.name === '月建');
-    const suppress = heavy.length > 0 && !hasDe;
+
+    /* 等第（月表） */
+    const gr = gradeOf(ss, monthZhi);
+    const policy = policyOf(gr.g, hasDe);
 
     /* 卷十明文的两条"遇德减忌"：
        三煞／月刑「與天德月德天德合月德合併，止忌安撫邊境、選將、訓兵、出師、求醫療病，餘皆不忌」
@@ -791,7 +846,7 @@ body{
     const deJian = hasDe && jianDay && !hardPo;
 
     for (const s of ss) for (const x of s.ji) push(jiSet, x, s.name);
-    if (!suppress) {
+    if (policy !== 'none') {
       for (const s of ss) for (const x of s.yi) push(yiSet, x, s.name);
       for (const x of seaAdd) push(yiSet, x, JIANCHU[jc] + '日（时令）');
     }
@@ -811,23 +866,34 @@ body{
       for (const t of Array.from(jiSet)) if (!keep.has(t)) jiSet.delete(t);
     }
 
-    // 忌克宜
+    /* 百忌日为硬忌，不入宜 */
+    for (const t of baiji) yiSet.delete(t);
+
+    /* 依等第处理宜忌相抵 */
     const conflicts = [];
-    for (const x of Array.from(yiSet)) {
-      if (jiSet.has(x)) { yiSet.delete(x); conflicts.push(x); }
+    if (policy === 'yi') {
+      for (const t of Array.from(jiSet)) if (yiSet.has(t) && baiji.indexOf(t) < 0) jiSet.delete(t);
+    } else if (policy === 'both') {
+      for (const t of yiSet) if (jiSet.has(t)) conflicts.push(t);
+    } else {
+      for (const t of Array.from(yiSet)) if (jiSet.has(t)) { yiSet.delete(t); conflicts.push(t); }
+    }
+
+    /* 卷十「止忌」的几项是硬忌，虽遇德、虽"从宜"也不得改为宜 */
+    if (deSha) {
+      for (const t of DE_SHA_JI) { jiSet.add(t); yiSet.delete(t); }
+    } else if (deJian) {
+      for (const t of TUFU_JI) { jiSet.add(t); yiSet.delete(t); }
     }
 
     const byOrder = (a, b) => (ORDER_IDX.has(a) ? ORDER_IDX.get(a) : 999) - (ORDER_IDX.has(b) ? ORDER_IDX.get(b) : 999);
     const yi = Array.from(yiSet).sort(byOrder);
     const ji = Array.from(jiSet).sort(byOrder);
 
-    /* 层级 */
-    let level, levelText;
-    if (heavy.some(s => s.name === '月破' || s.name === '月厌')) { level = 3; levelText = '大凶'; }
-    else if (heavy.length) { level = 2; levelText = '凶'; }
-    else if (ss.some(s => ['月害', '大时', '天吏', '小耗', '九空', '平日', '收日'].includes(s.name))) { level = 1; levelText = '小凶'; }
-    else if (hasDe || ss.some(s => s.name === '三合' || s.name === '六合')) { level = -1; levelText = '吉'; }
-    else { level = 0; levelText = '平'; }
+    /* 层级（由等第决定） */
+    const level = GRADE_LEVEL_N[gr.g];
+    const levelText = GRADE_LEVEL[gr.g];
+    const gradeName = GRADE_NAME[gr.g];
 
     /* 按类归并（忌项多时便于阅读） */
     const groupByCat = tokens => {
@@ -911,7 +977,8 @@ body{
       animal: ANIMALS[ygz % 12],
       term: t, jianchu: jc, jianchuName: JIANCHU[jc] + '日',
       shensha: ss, yi, ji, src: Object.fromEntries(src), conflicts, baiji, hours,
-      level, levelText, suppress, hasDe, heavy: heavy.map(s => s.name),
+      level, levelText, gradeName, gradeFrom: gr.from, policy,
+      suppress: policy === 'none', hasDe, heavy: heavy.map(s => s.name),
       yiGroups: groupByCat(yi), jiGroups: groupByCat(ji),
       chong: { zhi: chongDay, name: ANIMALS[chongDay], sha: shaDay },
       rules: {
@@ -1168,7 +1235,7 @@ body{
     if (isToday()) tags.push('<span class="tag red">今天</span>');
     tags.push('<span class="tag">农历' + esc(r.yearGZText) + '年</span>');
     tags.push('<span class="tag">' + esc(r.jianchuName) + '</span>');
-    tags.push('<span class="tag' + (r.level >= 2 ? ' warn' : '') + '">' + esc(r.levelText) + '</span>');
+    tags.push('<span class="tag' + (r.level >= 2 ? ' warn' : '') + '">' + esc(r.gradeName) + '·' + esc(r.levelText) + '</span>');
     r.shensha.forEach(function (s) {
       if (s.kind === '吉') tags.push('<span class="tag">' + esc(s.name) + '</span>');
     });
@@ -1394,7 +1461,7 @@ body{
       '<div class="dress-txt">历法：北京时间，定朔定气，无中气置闰；年柱以立春、月柱以节为界。节气精度约 ±15 分钟，交节近子夜时可能差一日。</div>' +
       '<div class="dress-txt">可靠区间 1900–2100。全部实时推算，没有预生成表；1929 年前中国用平朔与北京地方时，个别农历日可能与旧历书差一天。</div>' +
       '<div class="hr"></div>' +
-      '<div class="mini">未实现：卷十「宜忌等第表」原书为图象，未能获得，故六等算术未复原；已按卷十按语明文补入两条「遇德减忌」——三煞／月刑遇德止忌五项、月建遇德止忌营建类。天愿月恩四相时德等吉神、年表月表方位、个人本命未纳入；财神福神喜神方位各家口诀不一，不列。</div>' +
+      '<div class="mini">等第：依卷十「月表」六等（上·上次·中·中次·下·下下）判日，遇德则依判词进退；月破固定最下。未实现：天愿月恩四相时德等吉神、年表月表方位、个人本命；财神福神喜神方位各家口诀不一，不列。</div>' +
       '</div></div>' +
 
       '<div class="card"><div class="card-hd"><div class="card-title">历法自检</div><div class="card-more">对照香港天文台</div></div>' +
