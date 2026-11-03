@@ -1210,12 +1210,17 @@ body{
     };
   }
 
-  /* 当日干支五行对喜忌的粗打分（0–100） */
-  function scoreOf(dayGan, dayZhi, fav, unf) {
+  /* 当日干支五行对喜忌的粗打分（0–100）
+     th（可选）：调候用神 { main, second } 五行序号——原文明定「主用／次用」者另行加权 */
+  function scoreOf(dayGan, dayZhi, fav, unf, th) {
     let s = 50;
     const g = GAN_WX(dayGan), z = ZHI_WX[dayZhi];
     if (fav.indexOf(g) >= 0) s += 14; else if (unf.indexOf(g) >= 0) s -= 14;
     if (fav.indexOf(z) >= 0) s += 10; else if (unf.indexOf(z) >= 0) s -= 10;
+    if (th) {
+      if (th.main === g) s += 9; else if (th.main === z) s += 6;
+      if (th.second === g) s += 5; else if (th.second === z) s += 3;
+    }
     return Math.max(0, Math.min(100, Math.round(s)));
   }
 
@@ -1259,9 +1264,40 @@ body{
     return { idx: r.yearGZ, text: r.yearGZText, gan: r.yearGZ % 10, zhi: r.yearGZ % 12 };
   }
 
+  /* 月令取格（渊海子平：以日为主，先看提纲；月支取格，乃分贵贱） */
+  const GE_NAME = {
+    '正官': '正官格', '七杀': '偏官格', '正财': '正财格', '偏财': '偏财格',
+    '食神': '食神格', '伤官': '伤官格', '正印': '印绶格', '偏印': '枭神格',
+    '比肩': '建禄格', '劫财': '月刃格'
+  };
+  const LU_ZHI = [2, 3, 5, 6, 5, 6, 8, 9, 11, 0];   // 十干禄：甲寅 乙卯 丙巳 丁午 戊巳 己午 庚申 辛酉 壬亥 癸子
+  function geJu(bz) {
+    const me = bz.dayMaster, mz = bz.month.z;
+    /* 建禄、月刃先于藏干取格 */
+    if (mz === LU_ZHI[me]) {
+      return { name: '建禄格', shiShen: '比肩', gan: me, by: '月令临官', zhi: mz, text: GAN[me] + ZHI[mz] };
+    }
+    if (me % 2 === 0 && mz === (LU_ZHI[me] + 1) % 12) {
+      return { name: '月刃格', shiShen: '劫财', gan: me + 1, by: '月令帝旺', zhi: mz, text: GAN[me] + ZHI[mz] };
+    }
+    const cang = ZHI_CANG[mz];
+    const gans = [bz.year.g, bz.month.g].concat(bz.hour ? [bz.hour.g] : []);
+    const exposed = cang.filter(g => gans.indexOf(g) >= 0);
+    const gan = exposed.length ? exposed[0] : cang[0];
+    const shi = shiShen(me, gan);
+    return {
+      name: GE_NAME[shi] || shi,
+      shiShen: shi,
+      gan: gan,
+      by: exposed.length ? '透干' : '本气',
+      zhi: mz,
+      text: GAN[gan] + ZHI[mz]
+    };
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
-    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG,
+    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG, geJu,
     qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
@@ -1428,31 +1464,37 @@ window.XiejiMingli = {
    "src": "渊海子平",
    "name": "十神取象",
    "juan": "(篇首)",
-   "text": "基础\n五干属阳，喜合。\n以甲为例见甲：为比肩、兄弟。\n见乙：为劫财、败财，剋父及妻。\n见丙：为食神、天厨、寿星，为男。\n见丁：为伤官、退财、耗气，子甥。\n见戊：为偏财、偏妻、偏妾，剋子。\n见己：为正财、正妻，剋母，为合神。\n见庚：为偏官、七杀、官鬼、将星。\n见辛：为正官、禄马、荣神，父母。\n见壬：为倒食、偏印、梟神，剋女。\n见癸：为印綬、正人、君子，产业。\n五干属阴，喜冲。\n以乙为例见甲：为劫财、逐马，剋妻。\n见乙：为比肩、兄弟、朋友。\n见丙：为伤官、小人、盗气，为姪。\n见丁：为食神、天厨、寿星，子孙。\n见戊：为正财、正妻，剋母。\n见己：为偏财、偏妻、偏妾，剋子。\n见庚：为正官、禄马，剋父母。\n见辛：为偏官、七杀、官鬼，媒人。\n见壬：为印綬、正人、君子，忌杀。\n见癸：为倒食、偏印、梟神，剋母。"
+   "text": "基础五干属阳，喜合。以甲为例见甲：为比肩、兄弟。见乙：为劫财、败财，剋父及妻。见丙：为食神、天厨、寿星，为男。见丁：为伤官、退财、耗气，子甥。见戊：为偏财、偏妻、偏妾，剋子。见己：为正财、正妻，剋母，为合神。见庚：为偏官、七杀、官鬼、将星。见辛：为正官、禄马、荣神，父母。见壬：为倒食、偏印、梟神，剋女。见癸：为印綬、正人、君子，产业。五干属阴，喜冲。以乙为例见甲：为劫财、逐马，剋妻。见乙：为比肩、兄弟、朋友。见丙：为伤官、小人、盗气，为姪。见丁：为食神、天厨、寿星，子孙。见戊：为正财、正妻，剋母。见己：为偏财、偏妻、偏妾，剋子。见庚：为正官、禄马，剋父母。见辛：为偏官、七杀、官鬼，媒人。见壬：为印綬、正人、君子，忌杀。见癸：为倒食、偏印、梟神，剋母。"
   },
   {
    "src": "渊海子平",
    "name": "地支藏遁",
    "juan": "又地支藏遁歌",
-   "text": "子宫癸水在其中，丑癸辛金己土同；寅宫甲木兼丙戊，卯宫乙木独相逢。辰藏乙戊三分癸，巳中庚金丙戊丛；午宫丁火并己土，未宫乙己丁共宗。申位庚金壬水戊，酉宫辛金独丰隆；戌宫辛金及丁戊，亥藏壬甲是真踪。\n《论五行生剋制化》各有所喜所害例\n金旺得火，方成器皿；火旺得水，方成相济；水旺得土，方成池沼；土旺得木，方能疏通；木旺得金，方成栋樑。\n金赖土生，土多金埋；土赖火生，火多土焦；火赖木生，木多火炽；木赖水生，水多木漂；水赖金生，金多水浊。\n金能生水，水多金沉；水能生木，木盛水缩；木能生火，火多木焚；火能生土，土多火埋；土能生金，金多土变。\n金能剋木，木坚金缺；木能剋土，土重木折；土能剋水，水多土流；水能剋火，火多水热；火能剋金，金多火熄。\n金衰遇火，必见销鎔；火弱逢水，必为熄灭；水弱逢土，必为淤塞；土衰遇木，必遭倾陷；木弱逢金，必为砍折。\n强金得水，方挫其锋；强水得木，方泄其势；强木得火，方化其顽；强火得土，方止其燄；强土得金，方制其害。"
+   "text": "子宫癸水在其中，丑癸辛金己土同；寅宫甲木兼丙戊，卯宫乙木独相逢。辰藏乙戊三分癸，巳中庚金丙戊丛；午宫丁火并己土，未宫乙己丁共宗。申位庚金壬水戊，酉宫辛金独丰隆；戌宫辛金及丁戊，亥藏壬甲是真踪。《论五行生剋制化》各有所喜所害例金旺得火，方成器皿；火旺得水，方成相济；水旺得土，方成池沼；土旺得木，方能疏通；木旺得金，方成栋樑。金赖土生，土多金埋；土赖火生，火多土焦；火赖木生，木多火炽；木赖水生，水多木漂；水赖金生，金多水浊。金能生水，水多金沉；水能生木，木盛水缩；木能生火，火多木焚；火能生土，土多火埋；土能生金，金多土变。金能剋木，木坚金缺；木能剋土，土重木折；土能剋水，水多土流；水能剋火，火多水热；火能剋金，金多火熄。金衰遇火，必见销鎔；火弱逢水，必为熄灭；水弱逢土，必为淤塞；土衰遇木，必遭倾陷；木弱逢金，必为砍折。强金得水，方挫其锋；强水得木，方泄其势；强木得火，方化其顽；强火得土，方止其燄；强土得金，方制其害。"
   },
   {
    "src": "渊海子平",
-   "name": "论日为主",
+   "name": "月令取格",
+   "juan": "宝法第二",
+   "text": "宝法第二子平之法以日为主，先看提纲为重，次用年日时支合成格局，方可断之。皆以月令为用，不可以年取格。凡看子平之数，取格不定，十有九差。惟易鉴先生之法：月令用金只用金，用火只用火。八字水多却取水，不来取火，况此差矣。以法断之，误其大半。是西山易鉴参透玄机十八格，内取六格为重，用相生定格合局。仍用年日下以推轻重浅深，万无一失。六格法曰：逢官看财，逢财看杀，逢杀看印，逢印着官。如用印不怕杀，是杀拘印，印"
+  },
+  {
+   "src": "渊海子平",
+   "name": "月支取格",
+   "juan": "玄机赋",
+   "text": "玄机赋太极判为天地，一气分有阴阳。日干为主，专论财官；月支取格，乃分贵贱。有格不正者败，无格有用者成。有官莫寻格局，有格局不喜官星。官印财食，无破清高；杀伤劫刃，用之最吉。善恶相交，喜去恶而从善；吉凶混杂，忌害吉以向凶。有官有杀，宜身旺制杀为奇；有官有印，畏财助杀为祸。身强杀浅，杀运无妨；杀重身轻，制乡为福。身旺印多，喜行财地；财多身弱，畏入财乡。男逢比劫伤"
+  },
+  {
+   "src": "渊海子平",
+   "name": "看命六法",
+   "juan": "看命口诀",
+   "text": "渊海子平卷六看命口诀大凡看命先看月支有无财官，方看其他，月令为命也。月取支神，年取天干，日取天干，流岁取天干，大运取支神。月为本，日为主。如月有正官及偏官而时又入他格，只以月中取，他格无用。如月令全无可用，方看他格。古歌云：“三宫带格混难详，不晓凭谁是贵方，一任三宫皆带格，除非只得用提纲”是也。月令用地支，假如官星，须要上下干支透出为妙，或干透出，支中不透，主聪俊。忌年与时冲，月支日支自冲不妨。大运及岁君来冲月支则祸。凡正官一位，乃君子"
+  },
+  {
+   "src": "渊海子平",
+   "name": "以日为主",
    "juan": "论日为主",
-   "text": "予尝观唐书所载，有李虚中者，取人所生年月日时干支生剋，论命之贵贱寿夭之说，已详之矣！至于宋时，方有子平之说；取日干为主，以年为根，以月为苗，以日为花，以时为果；以生旺死绝休囚制化，决人生休咎。其理必然矣，复有何疑哉！\n一曰官，分之阴阳，曰官、曰杀，甲乙见庚辛也；二曰财，分之阴阳，曰正财、偏财，甲乙见戊己也；三曰生气之阴阳，曰印綬、曰倒食，甲乙见壬癸是也；四曰窃气之阴阳，曰食神、曰伤官，甲乙见丙丁是也；五曰同类之阴阳，曰劫财、曰阳刃，甲乙见甲乙是也。大抵贵贱寿夭死生，皆不出于五者；倘有妄立格局，从列其名，而无实用，其飞天禄马、倒冲井栏叉，即伤官，析而为之。举此一端，餘可知矣！\n以日为主，年为本，月为提纲，时为辅佐。\n以日为主，大要看日"
-  },
-  {
-   "src": "渊海子平",
-   "name": "论月令",
-   "juan": "论月令",
-   "text": "假令年为本，带官星印綬，则早年有官出自祖宗。\n月为提纲，带官星印綬，则慷慨聪明、见识高人。\n时为辅佐，平生操履。\n若年月日有吉神，则时归生旺之处；若凶神，则要归时制伏之乡。\n时上吉凶神，则年月日吉者生之，凶者制之。\n假令月令有用神，得父母力。\n年有用神，得祖宗力；时有用神，得子孙力；反此则不得力。"
-  },
-  {
-   "src": "渊海子平",
-   "name": "论大运",
-   "juan": "论大运",
-   "text": "夫大运者，以天干曰『五运』，地支曰『六气』，故名『范气』。\n子平之法，大运看支，岁君看干，交运同接木。何也？且干支二字，六十甲子之说，用花字；若天干、地支得其时，则自然开花结子盛矣！月令者，天元也，今运就月上起，譬之树苗，树之见苗，则知名；月之用神，则知其格，故谓交运如同接木。然，命有根苗花实者何？正合此意也，岂不宜矣！\n出癸入甲，如返汗之人；且如甲戌接癸亥，此乃干支接木。\n丑运交寅，辰交巳，未交申，戌交亥，此乃转角接木。\n东南西北四方转角，谓之接木；格局凶者死，格局善者灾。\n寅卯辰一气，申酉戌一气，亥子丑一气；气之相连，皆非接木之说。\n且如甲乙得寅卯运，名曰劫财败财，主剋父母及剋妻、破财争斗之事；行丙丁巳午运，名伤官，主剋子女、讼事、囚繫；庚辛申酉七杀官乡，主得名，发越太过，则灾病恶疾；行壬癸亥子生气印綬运，"
+   "text": "论日为主予尝观唐书，所载有李虚中者，取人所生年、月、日、时干支生克论命之贵贱、寿夭之说，已详之矣。至於宋时，方有子平之说。取日干为主，以年为根，以月为苗，以日为花，以时为果，以生旺死绝，休囚制化决人生休咎，其理必然矣，复有何疑哉。一曰官，分之阴阳，曰官、曰杀，甲乙见庚辛也。(甲见庚为杀，阳见阳也。见辛为官，阳见阴也。乙木庚为官，见辛为杀。)二曰财，分之阴阳，曰正财、偏财，甲乙见戊己是也。(阳见阴为"
   }
  ]
 };
@@ -1489,7 +1531,9 @@ window.XiejiQiongtong = {
   "text": "四月甲木退气，丙火司权，先癸後丁。",
   "juan": "卷二·论木",
   "sec": "四月甲木",
-  "use": []
+  "use": [
+   "癸"
+  ]
  },
  "甲|五月": {
   "exact": false,
@@ -1535,14 +1579,18 @@ window.XiejiQiongtong = {
   "text": "十月甲木，庚丁为要，丙火次之。忌壬水泛身，须戊土制之。",
   "juan": "卷二·论木",
   "sec": "十月甲木",
-  "use": []
+  "use": [
+   "戊"
+  ]
  },
  "甲|十一月": {
   "exact": true,
   "text": "十一月甲木，木性生寒，丁先庚後，丙火佐之。癸水司权，为火金之病。庚丁两透，支见巳寅，科甲有准，风水不及，选拔有之。若癸透伤丁。无戊己辅救，残疾之人。或壬水重出，丁火全无者，庸人也，得丙方妙。",
   "juan": "卷二·论木",
   "sec": "十一月甲木",
-  "use": []
+  "use": [
+   "庚"
+  ]
  },
  "甲|十二月": {
   "exact": true,
@@ -1576,7 +1624,9 @@ window.XiejiQiongtong = {
   "text": "三月乙木，阳气愈炽，先癸後丙。",
   "juan": "卷二·论木",
   "sec": "三月乙木",
-  "use": []
+  "use": [
+   "癸"
+  ]
  },
  "乙|四月": {
   "exact": true,
@@ -1584,7 +1634,8 @@ window.XiejiQiongtong = {
   "juan": "卷二·论木",
   "sec": "四月乙木",
   "use": [
-   "癸"
+   "癸",
+   "辛"
   ]
  },
  "乙|五月": {
@@ -1768,7 +1819,9 @@ window.XiejiQiongtong = {
   "text": "二月丁火，湿乙伤丁，先庚後甲，非不能去乙，非甲不能引丁。庚甲两透，科甲定然，庚透甲藏，亦有生贡，甲透庚藏，异路功名。",
   "juan": "卷三·论火",
   "sec": "二月丁火",
-  "use": []
+  "use": [
+   "庚"
+  ]
  },
  "丁|三月": {
   "exact": true,
@@ -1860,14 +1913,20 @@ window.XiejiQiongtong = {
   "text": "三春戊土，无丙照暖，戊土不生，无甲疏劈，戊土不灵，无癸滋润，万物不长，正二月先丙後，癸又次之，三月先甲後丙，癸又次之，因戊土司权故也，有甲、丙、癸、三者齐透，必主一品当朝，或二透一藏，亦登金榜，二藏一透，也可异途。",
   "juan": "卷四·论土",
   "sec": "三春戊土",
-  "use": []
+  "use": [
+   "丙",
+   "甲"
+  ]
  },
  "戊|二月": {
   "exact": false,
   "text": "三春戊土，无丙照暖，戊土不生，无甲疏劈，戊土不灵，无癸滋润，万物不长，正二月先丙後，癸又次之，三月先甲後丙，癸又次之，因戊土司权故也，有甲、丙、癸、三者齐透，必主一品当朝，或二透一藏，亦登金榜，二藏一透，也可异途。",
   "juan": "卷四·论土",
   "sec": "三春戊土",
-  "use": []
+  "use": [
+   "丙",
+   "甲"
+  ]
  },
  "戊|三月": {
   "exact": true,
@@ -1910,14 +1969,18 @@ window.XiejiQiongtong = {
   "text": "七月戊土，阳气渐入，寒气渐出，先丙後癸，甲木次之。",
   "juan": "卷四·论土",
   "sec": "七月戊土",
-  "use": []
+  "use": [
+   "丙"
+  ]
  },
  "戊|八月": {
   "exact": true,
   "text": "八月戊土，金泄身寒，赖丙照暖，喜水滋润，先丙後癸，不必木疏。",
   "juan": "卷四·论土",
   "sec": "八月戊土",
-  "use": []
+  "use": [
+   "丙"
+  ]
  },
  "戊|九月": {
   "exact": true,
@@ -1944,7 +2007,9 @@ window.XiejiQiongtong = {
   "text": "正月己土，田园犹冻，盖因腊气未除，余寒未退，故丙为尊，得丙照暖，万物自生，忌见壬水，反为己病，何也，壬乃江湖之水，湖水一发，则田园洗荡，变为沙土，而根苗尽没矣，须戊作堤，以保园圃，壬多要见戊制，有戊出干者，定主玉堂金马，若乏制戊，必属平常。",
   "juan": "卷四·论土",
   "sec": "正月己土",
-  "use": []
+  "use": [
+   "戊"
+  ]
  },
  "己|二月": {
   "exact": true,
@@ -1962,6 +2027,7 @@ window.XiejiQiongtong = {
   "juan": "卷四·论土",
   "sec": "三月己土",
   "use": [
+   "丙",
    "甲"
   ]
  },
@@ -2000,21 +2066,27 @@ window.XiejiQiongtong = {
   "text": "三秋己土，万物收藏之际，外虚内实，寒气渐升，须丙火温之，癸水润之，不特此也，且癸能泄金，丙能制金，补土精神，则秋生之物咸茂矣，癸先丙後。",
   "juan": "卷四·论土",
   "sec": "三秋己土",
-  "use": []
+  "use": [
+   "丙"
+  ]
  },
  "己|八月": {
   "exact": false,
   "text": "三秋己土，万物收藏之际，外虚内实，寒气渐升，须丙火温之，癸水润之，不特此也，且癸能泄金，丙能制金，补土精神，则秋生之物咸茂矣，癸先丙後。",
   "juan": "卷四·论土",
   "sec": "三秋己土",
-  "use": []
+  "use": [
+   "丙"
+  ]
  },
  "己|九月": {
   "exact": false,
   "text": "三秋己土，万物收藏之际，外虚内实，寒气渐升，须丙火温之，癸水润之，不特此也，且癸能泄金，丙能制金，补土精神，则秋生之物咸茂矣，癸先丙後。",
   "juan": "卷四·论土",
   "sec": "三秋己土",
-  "use": []
+  "use": [
+   "丙"
+  ]
  },
  "己|十月": {
   "exact": false,
@@ -2052,7 +2124,8 @@ window.XiejiQiongtong = {
   "juan": "卷五·论金",
   "sec": "正月庚金",
   "use": [
-   "丙"
+   "丙",
+   "甲"
   ]
  },
  "庚|二月": {
@@ -2071,6 +2144,7 @@ window.XiejiQiongtong = {
   "juan": "卷五·论金",
   "sec": "三月庚金",
   "use": [
+   "甲",
    "庚",
    "丁"
   ]
@@ -2081,6 +2155,7 @@ window.XiejiQiongtong = {
   "juan": "卷五·论金",
   "sec": "四月庚金",
   "use": [
+   "壬",
    "戊"
   ]
  },
@@ -2179,7 +2254,9 @@ window.XiejiQiongtong = {
   "text": "三月辛金，戊土司令，辛承正气，母旺子相，先壬後甲，壬甲两透，富贵必然，壬透甲藏，廪贡不失，甲透壬藏，富贵可云，壬甲皆无，平常之格。",
   "juan": "卷五·论金",
   "sec": "三月辛金",
-  "use": []
+  "use": [
+   "壬"
+  ]
  },
  "辛|四月": {
   "exact": true,
@@ -2193,7 +2270,9 @@ window.XiejiQiongtong = {
   "text": "五月辛金，丁火司权，辛金失令，阴柔之极，不宜煆炼，须己壬兼用，何也，己为泥沙，壬为湖海，己无壬不湿，辛无己不生，故壬己并用，无壬，癸亦可用，但癸力小，或支成火局，即重见癸出，亦不济，得壬透破火方可，必主生员，若无壬，癸见戊，虽有午宫己土，燥泥成灰，金必煆熔，反遭埋没，必为僧道，有一二重比肩，不致孤独。",
   "juan": "卷五·论金",
   "sec": "五月辛金",
-  "use": []
+  "use": [
+   "己"
+  ]
  },
  "辛|六月": {
   "exact": true,
@@ -2227,7 +2306,10 @@ window.XiejiQiongtong = {
   "text": "九月辛金，成土司令，母旺子相，须甲疏土，壬泄旺金，先壬後甲，壬甲两透，桃洞之仙，或壬透甲藏，又见者，平人，甲透，壬藏，戊在支内，异途之仕。",
   "juan": "卷五·论金",
   "sec": "九月辛金",
-  "use": []
+  "use": [
+   "甲",
+   "壬"
+  ]
  },
  "辛|十月": {
   "exact": true,
@@ -2251,7 +2333,9 @@ window.XiejiQiongtong = {
   "text": "十二月辛金，寒冻之极，先丙後壬，炳不能解冻，无壬不能洗淘，丙壬两透，金马玉堂之客，壬丙俱藏，游庠食　之人，有丙无壬，富真贵假，有壬乏丙，贱而且贫，或丙多，无壬，有癸，市中贸易之流。",
   "juan": "卷五·论金",
   "sec": "十二月辛金",
-  "use": []
+  "use": [
+   "丙"
+  ]
  },
  "壬|正月": {
   "exact": true,
@@ -2347,7 +2431,8 @@ window.XiejiQiongtong = {
   "juan": "卷六·论水",
   "sec": "十月壬水",
   "use": [
-   "戊"
+   "戊",
+   "庚"
   ]
  },
  "壬|十一月": {
@@ -2410,7 +2495,9 @@ window.XiejiQiongtong = {
   "text": "五月癸水，至弱无根，必须庚辛为生身之本，但丁火司权，金难敌火，安能滋养癸水，宜见比劫，方得辛金之用，五月癸水，庚辛壬参酌并用可也。",
   "juan": "卷六·论水",
   "sec": "五月癸水",
-  "use": []
+  "use": [
+   "庚"
+  ]
  },
  "癸|六月": {
   "exact": true,
@@ -2762,7 +2849,7 @@ window.XiejiQiongtong = {
     if (!S.bz || !S.favNow) return null;
     var rel = null;
     try { rel = E.dayRelations(r.dayGZ, r.dayZhi, S.bz); } catch (e) { return null; }
-    var sc = E.scoreOf(r.dayGZ, r.dayZhi, S.favNow, S.unfNow || []);
+    var sc = E.scoreOf(r.dayGZ, r.dayZhi, S.favNow, S.unfNow || [], S.th);
     rel.list.forEach(function (x) {
       if (x.type === '天克地冲') sc -= 30;
       else if (x.type === '冲' && x.pillar === '日') sc -= 25;
@@ -2794,6 +2881,23 @@ window.XiejiQiongtong = {
     });
     var order = [0, 1, 2, 3, 4].sort(function (x, y) { return sc[y] - sc[x]; });
     return { sc: sc, fav: order.slice(0, 2), unf: order.slice(3) };
+  }
+
+  /* 调候用神（穷通宝鉴）：返回主用/次用的五行序号 */
+  var MONTH_ORD = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+  function tiaohouOf(bz) {
+    var Q = window.XiejiQiongtong || {};
+    if (!bz) return null;
+    var mi = (bz.month.z - 2 + 12) % 12;
+    var cell = Q[GAN[bz.dayMaster] + '|' + MONTH_ORD[mi]];
+    if (!cell) return null;
+    var wxOf = function (g) { return [0, 0, 1, 1, 2, 2, 3, 3, 4, 4][GAN.indexOf(g)]; };
+    var use = cell.use || [];
+    return {
+      main: use.length ? wxOf(use[0]) : null,
+      second: use.length > 1 ? wxOf(use[1]) : null,
+      gans: use, cell: cell
+    };
   }
 
   function modern(list) {
@@ -2987,7 +3091,9 @@ window.XiejiQiongtong = {
         '·' + (wx.deLing ? '得令' : '失令') + '·得地' + wx.deDi + '·得势' + wx.deShi + '）；今日' +
         esc(r.dayGZText) + '日，为你的「<b>' + rel.shiShen + '</b>」。<span class="mini">' +
         esc(SHISHEN_TXT[rel.shiShen] || '') + '</span></div>';
-      rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五「生我者壬癸水…尅我者庚辛金」；旺衰取卷二「要以中和為貴」之说。</div>';
+      rows += '<div class="dress-txt">格局：<b>' + esc(E.geJu(b).name) + '</b>（月令' +
+        esc(ZHI[b.month.z]) + '·' + esc(E.geJu(b).by) + esc(E.GAN[E.geJu(b).gan]) + '）</div>';
+      rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五；旺衰取卷二「要以中和為貴」；取格据《渊海子平》「月支取格，乃分贵贱」。</div>';
       rows += '<div class="dress-txt">五行：' + E.WX_NAME.map(function (n, i) {
         return n + wx.counts[i];
       }).join(' ') + '</div>';
@@ -3007,7 +3113,8 @@ window.XiejiQiongtong = {
           (cell.use && cell.use.length ? '　原文主用：<b>' + cell.use.map(function (g) {
             return g + '（' + E.WX_NAME[[0, 0, 1, 1, 2, 2, 3, 3, 4, 4][GAN.indexOf(g)]] + '）';
           }).join('、') + '</b>' : '') +
-          (cell.exact ? '' : '　<span class="mini">（此月无专条，取季论）</span>') + '</div>' +
+          (cell.exact ? '' : '　<span class="mini">（此月无专条，取季论）</span>') +
+          '　<span class="mini">已并入喜用</span>' + '</div>' +
           '<div class="quote" style="margin-top:6px">' + esc(cell.text.slice(0, 120)) + '…</div>';
       })();
     }
@@ -3052,13 +3159,10 @@ window.XiejiQiongtong = {
   function viewHome(r) {
     var tags = [];
     var rel = null;
-    S.wx = S.bz ? E.baziWuxing(S.bz) : null;
-    S.favNow = (S.favManual && S.favManual.length) ? S.favManual : (S.wx ? S.wx.fav : null);
-    S.unfNow = (S.unfManual && S.unfManual.length) ? S.unfManual : (S.wx ? S.wx.unf : null);
     if (S.bz) { try { rel = E.dayRelations(r.dayGZ, r.dayZhi, S.bz); } catch (e) { rel = null; } }
     var score = null;
     if (S.favNow) {
-      score = E.scoreOf(r.dayGZ, r.dayZhi, S.favNow, S.unfNow || []);
+      score = E.scoreOf(r.dayGZ, r.dayZhi, S.favNow, S.unfNow || [], S.th);
       if (rel) rel.list.forEach(function (x) {
         if (x.type === '天克地冲') score -= 30;
         else if (x.type === '冲' && x.pillar === '日') score -= 25;
@@ -3582,8 +3686,17 @@ window.XiejiQiongtong = {
   function render() {
     var r = day();
     S.wx = S.bz ? E.baziWuxing(S.bz) : null;
-    S.favNow = (S.favManual && S.favManual.length) ? S.favManual : (S.wx ? S.wx.fav : null);
-    S.unfNow = (S.unfManual && S.unfManual.length) ? S.unfManual : (S.wx ? S.wx.unf : null);
+    S.th = tiaohouOf(S.bz);
+    var f0 = (S.favManual && S.favManual.length) ? S.favManual.slice() : (S.wx ? S.wx.fav.slice() : []);
+    var u0 = (S.unfManual && S.unfManual.length) ? S.unfManual.slice() : (S.wx ? S.wx.unf.slice() : []);
+    /* 调候用神并入喜用（原文明定者优先，不再算作忌） */
+    if (S.th) {
+      if (S.th.main !== null && f0.indexOf(S.th.main) < 0) f0.push(S.th.main);
+      if (S.th.second !== null && f0.indexOf(S.th.second) < 0) f0.push(S.th.second);
+      u0 = u0.filter(function (w) { return f0.indexOf(w) < 0; });
+    }
+    S.favNow = f0.length ? f0 : null;
+    S.unfNow = u0;
     var body = S.tab === 'detail' ? viewDetail(r)
       : S.tab === 'zeri' ? viewZeri()
         : S.tab === 'quotes' ? viewQuotes(r)
