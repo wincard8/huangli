@@ -71,6 +71,10 @@ body{
   text-align:center}
 .tag.tap{cursor:pointer}
 .tag.tap::after{content:"›";margin-left:3px;opacity:.45;font-size:10px}
+.bazi{display:flex;gap:8px;margin-bottom:2px}
+.bazi>div{flex:1;text-align:center;background:#FFFDF8;border:1px solid var(--line);border-radius:8px;padding:7px 2px}
+.bazi>div span{display:block;font-size:10.5px;color:var(--muted);margin-bottom:2px}
+.bazi>div b{font-size:19px;letter-spacing:1px;color:var(--ink)}
 .qitem{border-bottom:1px solid var(--line);padding:9px 0}
 .qitem:last-child{border-bottom:0}
 .qitem summary{cursor:pointer;font-size:14.5px;color:var(--ink);list-style:none;outline:none}
@@ -1036,8 +1040,82 @@ body{
     return out;
   }
 
+  /* ---------------- 八字：四柱、十神、刑冲合害 ---------------- */
+  const GAN_WX = g => Math.floor(g / 2) % 5;          // 0木1火2土3金4水
+  const SHENG = i => (i + 1) % 5;                      // 我生
+  const KE = i => (i + 2) % 5;                         // 我克
+
+  function shiShen(meGan, otherGan) {
+    const me = GAN_WX(meGan), ot = GAN_WX(otherGan);
+    const sameYin = (meGan % 2) === (otherGan % 2);
+    if (me === ot) return sameYin ? '比肩' : '劫财';
+    if (ot === SHENG(me)) return sameYin ? '食神' : '伤官';
+    if (ot === KE(me)) return sameYin ? '偏财' : '正财';
+    if (me === KE(ot)) return sameYin ? '七杀' : '正官';
+    return sameYin ? '偏印' : '正印';
+  }
+
+  /* 五鼠遁：日干定子时天干 */
+  function hourGan(dayGan, hourZhi) { return ((dayGan % 5) * 2 + hourZhi) % 10; }
+
+  function baziOf(y, m, d, hourZhi) {
+    const r = computeDay(y, m, d);
+    const hz = (hourZhi === undefined || hourZhi === null) ? null : hourZhi;
+    const yg = r.yearGZ % 10, mg = r.monthGZ % 10, dg = r.dayGZ % 10;
+    return {
+      year: { g: yg, z: r.yearGZ % 12, idx: r.yearGZ },
+      month: { g: mg, z: r.monthZhi, idx: r.monthGZ },
+      day: { g: dg, z: r.dayZhi, idx: r.dayGZ },
+      hour: hz === null ? null : { g: hourGan(dg, hz), z: hz },
+      dayMaster: dg,
+      yearText: r.yearGZText, monthText: r.monthGZText, dayText: r.dayGZText,
+      hourText: hz === null ? '' : GAN[hourGan(dg, hz)] + ZHI[hz],
+      jieqi: r.term ? r.term.name : ''
+    };
+  }
+
+  /* 旬空：由六十甲子序号定 */
+  function xunKong(idx) {
+    const start = idx - (idx % 10);
+    return [(start + 10) % 12, (start + 11) % 12];
+  }
+
+  const HE6 = [1, 0, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
+  const HAI6 = [7, 6, 5, 4, 3, 2, 1, 0, 11, 10, 9, 8];
+  const XING_GROUP = (() => {
+    const g = new Array(12).fill(-1);
+    [0, 3].forEach(z => g[z] = 0);       // 子卯
+    [2, 5, 8].forEach(z => g[z] = 1);    // 寅巳申
+    [1, 10, 7].forEach(z => g[z] = 2);   // 丑戌未
+    [4, 6, 9, 11].forEach(z => g[z] = 3); // 自刑
+    return g;
+  })();
+
+  /* 当日（日柱）与命局四柱的关系 */
+  function dayRelations(dayG, dayZ, bz) {
+    const out = [];
+    const pillars = [['年', bz.year], ['月', bz.month], ['日', bz.day]];
+    if (bz.hour) pillars.push(['时', bz.hour]);
+    for (const [label, p] of pillars) {
+      if (dayZ === (p.z + 6) % 12) out.push({ type: '冲', pillar: label, text: '日支冲' + label + '支' + ZHI[p.z] });
+      if (dayZ === HE6[p.z]) out.push({ type: '合', pillar: label, text: '日支合' + label + '支' + ZHI[p.z] });
+      if (dayZ === HAI6[p.z]) out.push({ type: '害', pillar: label, text: '日支害' + label + '支' + ZHI[p.z] });
+      if (XING_GROUP[dayZ] >= 0 && XING_GROUP[dayZ] === XING_GROUP[p.z] && dayZ !== p.z)
+        out.push({ type: '刑', pillar: label, text: '日支刑' + label + '支' + ZHI[p.z] });
+      if (dayZ === p.z && [4, 6, 9, 11].indexOf(dayZ) >= 0)
+        out.push({ type: '自刑', pillar: label, text: '日支自刑（' + ZHI[dayZ] + '）' });
+      /* 天克地冲 */
+      if (dayZ === (p.z + 6) % 12 && GAN_WX(dayG) === KE(GAN_WX(p.g)))
+        out.push({ type: '天克地冲', pillar: label, text: '天克地冲' + label + '柱（' + GAN[p.g] + ZHI[p.z] + '）' });
+    }
+    const shi = shiShen(bz.dayMaster, dayG);
+    const kong = xunKong(bz.day.idx);
+    return { list: out, shiShen: shi, kong: kong, kongHit: pillars.filter(pp => kong.indexOf(pp[1].z) >= 0).map(pp => pp[0]) };
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
+    baziOf, shiShen, dayRelations, xunKong,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
   };
@@ -1219,18 +1297,40 @@ window.XiejiQuotes = {
     tab: 'home', sheet: '', calY: now.getFullYear(), calM: now.getMonth() + 1,
     tsTab: 'yi', thing: 0, days: 60, quoteOpen: -1,
     zodiac: null, zMode: 'range', zMonth: '',
-    bY: 1990, bM: 1, bD: 1, bLeap: false, qName: ''
+    bY: 1990, bM: 1, bD: 1, bLeap: false, bHz: null, qName: '', bz: null
   };
   try {
     var _z = localStorage.getItem('xieji.zodiac');
     if (_z !== null && _z !== '') S.zodiac = +_z;
     var _zm = localStorage.getItem('xieji.zmonth');
     if (_zm) S.zMonth = _zm;
+    var _b = localStorage.getItem('xieji.birth');
+    if (_b) {
+      var _o = JSON.parse(_b);
+      if (_o && _o.bY) {
+        S.bY = _o.bY; S.bM = _o.bM; S.bD = _o.bD; S.bLeap = !!_o.bLeap;
+        S.bHz = (_o.bHz === null || _o.bHz === undefined) ? null : +_o.bHz;
+      }
+    }
   } catch (e) { /* 本地文件可能禁用 localStorage */ }
   function saveZodiac(v) {
     S.zodiac = v;
     try { localStorage.setItem('xieji.zodiac', String(v)); } catch (e) { }
   }
+  function saveBirth() {
+    try {
+      localStorage.setItem('xieji.birth', JSON.stringify({
+        bY: S.bY, bM: S.bM, bD: S.bD, bLeap: S.bLeap, bHz: S.bHz
+      }));
+    } catch (e) { }
+  }
+  function bzNow() {
+    var j = E.lunarToJDN(S.bY, S.bM, S.bD, S.bLeap);
+    if (j === null) return null;
+    var g = E.jdnToGregorian(j);
+    try { return E.baziOf(g.year, g.month, g.day, S.bHz); } catch (e) { return null; }
+  }
+  S.bz = bzNow();
   var cache = {};
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -1434,6 +1534,27 @@ window.XiejiQuotes = {
   }
 
   /* ---------------- 视图 ---------------- */
+  function baziHtml(r, rel) {
+    var b = S.bz;
+    var cols = [['年', b.yearText], ['月', b.monthText], ['日', b.dayText], ['时', b.hourText || '—']];
+    var grid = cols.map(function (c) {
+      return '<div><span class="mini">' + c[0] + '柱</span><b class="serif">' + esc(c[1]) + '</b></div>';
+    }).join('');
+    var rows = '';
+    if (rel) {
+      rows += '<div class="dress-txt" style="margin-top:10px">日主 <b>' + GAN[b.dayMaster] + '</b>；今日' +
+        esc(r.dayGZText) + '日，为你的「<b>' + rel.shiShen + '</b>」。</div>';
+      rows += rel.list.length
+        ? '<div class="dress-txt">与命局：' + rel.list.map(function (x) { return esc(x.text); }).join('、') + '</div>'
+        : '<div class="dress-txt">与命局无冲、无刑、无合、无害。</div>';
+      if (rel.kongHit.length) {
+        rows += '<div class="dress-txt">今日旬空 ' + rel.kong.map(function (z) { return ZHI[z]; }).join('') +
+          '，落你的' + rel.kongHit.join('、') + '柱。</div>';
+      }
+    }
+    return '<div class="bazi">' + grid + '</div>' + rows;
+  }
+
   function viewHome(r) {
     var tags = [];
     if (isToday()) tags.push('<span class="tag red">今天</span>');
@@ -1471,10 +1592,19 @@ window.XiejiQuotes = {
         '<div class="gicon serif' + (i < 4 ? ' filled' : '') + '">' + g.ic + '</div><div>' + g.t + '</div></div>';
     }).join('');
 
+    var rel = null;
+    if (S.bz) { try { rel = E.dayRelations(r.dayGZ, r.dayZhi, S.bz); } catch (e) { rel = null; } }
+    var harsh = rel ? rel.list.filter(function (x) {
+      return x.type === '冲' || x.type === '天克地冲' || x.type === '刑' || x.type === '自刑';
+    }) : [];
     var clash = (S.zodiac !== null && S.zodiac !== undefined && r.dayZhi === (S.zodiac + 6) % 12);
-    var alertHtml = clash
-      ? '<div class="alert">今日冲' + esc(ANIMALS[(r.dayZhi + 6) % 12]) + '（你的生肖），大事宜避；冲煞之日，只宜小事。</div>'
-      : '';
+    var alertHtml = '';
+    if (harsh.length) {
+      alertHtml = '<div class="alert">今日' + esc(r.dayGZText) + '日，与你的命局：' +
+        harsh.map(function (x) { return esc(x.text); }).join('、') + '。遇冲刑之日，大事宜避。</div>';
+    } else if (clash) {
+      alertHtml = '<div class="alert">今日冲' + esc(ANIMALS[(r.dayZhi + 6) % 12]) + '（你的生肖），大事宜避；冲煞之日，只宜小事。</div>';
+    }
 
     return '<div class="wrap">' +
       '<div class="datebar"><span>' + S.y + '年' + S.m + '月' + S.d + '日</span>' +
@@ -1495,8 +1625,10 @@ window.XiejiQuotes = {
       (note.length ? '<div class="xj-note">' + note.join('') + '</div>' : '') +
       '</div>' +
 
+      (S.bz ? '<div class="card"><div class="card-hd"><div class="card-title">命局与今日</div>' +
+        '<div class="card-more">' + esc(S.bz.yearText + ' ' + S.bz.monthText + ' ' + S.bz.dayText + (S.bz.hourText ? ' ' + S.bz.hourText : '')) +
+        '</div></div><div class="card-body" style="padding-top:6px">' + baziHtml(r, rel) + '</div></div>' : '') +
       '<div class="grid8">' + grid + '</div>' +
-
       '<div class="card"><div class="card-hd"><div class="card-title">每时必看</div>' +
       '<div class="card-more" data-act="sheet:ts">全部时辰 ›</div></div>' +
       '<div class="card-body">' +
@@ -1717,10 +1849,11 @@ window.XiejiQuotes = {
     return '<div class="wrap">' +
       '<div class="card" style="margin-top:12px"><div class="card-hd"><div class="card-title">我的生肖</div>' +
       '<div class="card-more">用于冲煞提示</div></div><div class="card-body">' +
-      '<div class="dress-txt">按<b>农历</b>填生日，生肖按农历年（春节）定。当天日支冲你的生肖时，首页会出现红条提示。</div>' +
-      '<button class="btn ghost" data-act="sheet:birth">选择生日（农历）</button>' +
+      '<div class="dress-txt">按<b>农历</b>填生日与时辰，推四柱八字；日支冲、刑你的命局时，首页出现红条。生肖按农历年（春节）定。</div>' +
+      '<button class="btn ghost" data-act="sheet:birth">填写生日与时辰</button>' +
       '<div class="mini" style="margin-top:8px">当前：' +
       (S.zodiac !== null && S.zodiac !== undefined ? '属' + ANIMALS[S.zodiac] + '（' + ZHI[S.zodiac] + '）' : '未设置') +
+      (S.bz ? '　四柱 ' + esc(S.bz.yearText) + ' ' + esc(S.bz.monthText) + ' ' + esc(S.bz.dayText) + (S.bz.hourText ? ' ' + esc(S.bz.hourText) : '') : '') +
       '</div></div></div>' +
       '<div class="card"><div class="card-hd"><div class="card-title">算法与口径</div></div>' +
       '<div class="card-body">' +
@@ -1787,13 +1920,18 @@ window.XiejiQuotes = {
       var maxD = curM ? curM.days : 30;
       var dOpts = '';
       for (var dd = 1; dd <= maxD; dd++) dOpts += '<option value="' + dd + '"' + (dd === S.bD ? ' selected' : '') + '>' + lunarDayName(dd) + '</option>';
+      var hOpts = '<option value=""' + (S.bHz === null || S.bHz === undefined ? ' selected' : '') + '>时辰不详</option>';
+      for (var hi = 0; hi < 12; hi++) hOpts += '<option value="' + hi + '"' + (hi === S.bHz ? ' selected' : '') + '>' + ZHI[hi] + '时</option>';
       return '<div class="sheet-hd"><span>选择生日</span><span class="chip" data-act="closesheet">关闭</span></div>' +
         '<div class="birth-row">' +
         '<select class="bsel" id="by">' + yOpts + '</select>' +
         '<select class="bsel" id="bm">' + mOpts + '</select>' +
         '<select class="bsel" id="bd">' + dOpts + '</select>' +
         '</div>' +
-        '<div class="mini" style="margin-top:10px">按<b>农历</b>填生日（闰月另列）。生肖按农历年（春节）定，不按立春；当天日支冲你的生肖时，首页出现红条。</div>' +
+        '<div class="birth-row" style="margin-top:8px">' +
+        '<select class="bsel" id="bh" style="flex:1">' + hOpts + '</select>' +
+        '</div>' +
+        '<div class="mini" style="margin-top:10px">按<b>农历</b>填生日（闰月另列）。时辰填出生时辰；不确定可留空，四柱只缺时柱。生肖按农历年（春节）定。</div>' +
         '<button class="btn" data-act="savebirth" style="margin-top:12px">保存生日</button>';
     }
     if (S.sheet === 'cal') {
@@ -1936,9 +2074,12 @@ window.XiejiQuotes = {
       try {
         E.computeDay(gB.year, gB.month, gB.day);
         saveZodiac(zhiB);
+        saveBirth();
+        S.bz = bzNow();
         S.sheet = '';
+        var bt = S.bz ? '　四柱：' + S.bz.yearText + ' ' + S.bz.monthText + ' ' + S.bz.dayText + (S.bz.hourText ? ' ' + S.bz.hourText : '') : '';
         toast('农历' + S.bY + '年' + (S.bLeap ? '闰' : '') + lunarMonthName(S.bM) + lunarDayName(S.bD) +
-          '（' + gB.year + '-' + gB.month + '-' + gB.day + '）→ 属' + ANIMALS[zhiB]);
+          '（' + gB.year + '-' + gB.month + '-' + gB.day + '）→ 属' + ANIMALS[zhiB] + bt);
         render(); return;
       } catch (e) { toast('该日期超出范围（1900–2100）'); return; }
     }
@@ -1963,6 +2104,7 @@ window.XiejiQuotes = {
       render(); return;
     }
     if (id === 'bd') { S.bD = +e.target.value; return; }
+    if (id === 'bh') { S.bHz = e.target.value === '' ? null : +e.target.value; return; }
   });
 
   function bootHash() {
