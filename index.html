@@ -1295,9 +1295,57 @@ body{
     };
   }
 
+  /* 格局成败：据《渊海子平·看命口诀》「逢官看财，逢煞看印，逢印看官」等
+     只在四柱十神齐备/冲突时给判断，不做旺衰以外的强弱推演 */
+  function geJuStatus(bz, gj) {
+    const me = bz.dayMaster;
+    const ps = [bz.year, bz.month, bz.day].concat(bz.hour ? [bz.hour] : []);
+    const has = {};                       // 十神 → 出现次数
+    const add = g => { const s = shiShen(me, g); has[s] = (has[s] || 0) + 1; };
+    ps.forEach(p => { add(p.g); ZHI_CANG[p.z].forEach(add); });
+    const hasAny = arr => arr.some(s => has[s]);
+    const tou = {};
+    ps.forEach(p => { const k = shiShen(me, p.g); tou[k] = (tou[k] || 0) + 1; });
+    const touAny = arr => arr.some(s => tou[s]);
+
+    const reasons = [];
+    let verdict = '平';
+    const name = gj.name;
+
+    if (name === '正官格') {
+      if (touAny(['伤官'])) { verdict = '破'; reasons.push('伤官见官，格破'); }
+      else if (hasAny(['正财', '偏财'])) { verdict = '成'; reasons.push('逢官看财，财生官'); }
+      if (touAny(['七杀'])) { verdict = verdict === '成' ? '平' : '破'; reasons.push('官杀混杂'); }
+    } else if (name === '偏官格') {
+      if (hasAny(['食神', '正印', '偏印'])) { verdict = '成'; reasons.push('煞看印、食神制杀'); }
+      if (hasAny(['正财', '偏财']) && !hasAny(['食神', '正印', '偏印'])) { verdict = '破'; reasons.push('财生煞而无制'); }
+    } else if (name === '正财格' || name === '偏财格') {
+      if (touAny(['比肩', '劫财'])) { verdict = '破'; reasons.push('比劫夺财'); }
+      else if (hasAny(['食神', '伤官'])) { verdict = '成'; reasons.push('食伤生财'); }
+    } else if (name === '印绶格' || name === '枭神格') {
+      if (touAny(['正财', '偏财'])) { verdict = '破'; reasons.push('财破印'); }
+      else if (hasAny(['正官', '七杀'])) { verdict = '成'; reasons.push('逢印看官，官印相生'); }
+    } else if (name === '食神格') {
+      if (touAny(['偏印'])) { verdict = '破'; reasons.push('枭神夺食'); }
+      else if (hasAny(['正财', '偏财'])) { verdict = '成'; reasons.push('食神生财'); }
+    } else if (name === '伤官格') {
+      if (touAny(['正官'])) { verdict = '破'; reasons.push('伤官见官'); }
+      else if (hasAny(['正财', '偏财'])) { verdict = '成'; reasons.push('伤官生财'); }
+    } else if (name === '建禄格' || name === '月刃格') {
+      if (hasAny(['正财', '偏财', '正官', '七杀'])) { verdict = '成'; reasons.push('禄刃喜财官'); }
+      else { verdict = '平'; reasons.push('禄刃无财官可依'); }
+    }
+
+    /* 月支被冲，格根受损 */
+    const chong = ps.some(p => p.z === (bz.month.z + 6) % 12);
+    if (chong) { reasons.push('月令被冲，格根不稳'); if (verdict === '成') verdict = '平'; }
+
+    return { verdict: verdict, reasons: reasons, name: name };
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
-    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG, geJu,
+    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG, geJu, geJuStatus,
     qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
@@ -3092,9 +3140,12 @@ window.XiejiQiongtong = {
         esc(r.dayGZText) + '日，为你的「<b>' + rel.shiShen + '</b>」。<span class="mini">' +
         esc(SHISHEN_TXT[rel.shiShen] || '') + '</span></div>';
       var _gj = E.geJu(b);
+      var _st = E.geJuStatus(b, _gj);
       rows += '<div class="dress-txt">格局：<b>' + esc(_gj.name) + '</b>（月令' + esc(ZHI[_gj.zhi]) + '·' +
-        (_gj.by === '月令临官' ? '临官' : _gj.by === '月令帝旺' ? '帝旺' : _gj.by + esc(E.GAN[_gj.gan])) + '）</div>';
-      rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五；旺衰取卷二「要以中和為貴」；取格据《渊海子平》「月支取格，乃分贵贱」。</div>';
+        (_gj.by === '月令临官' ? '临官' : _gj.by === '月令帝旺' ? '帝旺' : _gj.by + esc(E.GAN[_gj.gan])) + '）· <b>' +
+        esc(_st.verdict) + '格</b>' +
+        (_st.reasons.length ? '　<span class="mini">' + esc(_st.reasons.join('；')) + '</span>' : '') + '</div>';
+      rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五；旺衰取卷二「要以中和為貴」；取格据《渊海子平》「月支取格，乃分贵贱」；成败据《看命口诀》「逢官看财，逢煞看印，逢印看官」。</div>';
       rows += '<div class="dress-txt">五行：' + E.WX_NAME.map(function (n, i) {
         return n + wx.counts[i];
       }).join(' ') + '</div>';
