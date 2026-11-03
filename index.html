@@ -1435,10 +1435,17 @@ body{
     return out;
   }
 
+  /* 小运：据《渊海子平·论行小运法》「男一岁起丙寅顺行，女一岁起壬申逆行」 */
+  function xiaoYun(age, male) {
+    const n = Math.max(1, age) - 1;
+    const idx = male ? ((2 + n) % 60) : ((8 - n) % 60 + 60) % 60;
+    return { idx: idx, gan: idx % 10, zhi: idx % 12, text: GAN[idx % 10] + ZHI[idx % 12], age: age };
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
     baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG,
-    geJu, geJuStatus, liuQin, changSheng, CS_NAMES, yunScore, yongShen, liuYue,
+    geJu, geJuStatus, liuQin, changSheng, CS_NAMES, yunScore, yongShen, liuYue, xiaoYun,
     qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
@@ -3339,7 +3346,16 @@ window.XiejiQiongtong = {
           '<div class="dress-txt mini">' + S.y + ' 流月：' + E.liuYue(S.y).map(function (m2) {
             var r3 = E.yunScore(m2.gan, m2.zhi, S.bz, S.favNow || [], S.unfNow || []);
             return m2.month + '月' + esc(m2.text) + r3.score;
-          }).join(' ') + '</div>';
+          }).join(' ') + '</div>' +
+          (function () {
+            var bs = birthSolar();
+            if (!bs) return '';
+            var age = S.y - bs.year + 1;
+            var xy = E.xiaoYun(age, S.bMale);
+            var xs = E.yunScore(xy.gan, xy.zhi, S.bz, S.favNow || [], S.unfNow || []);
+            return '<div class="dress-txt mini">小运：' + esc(xy.text) + '（' + S.y + ' 年虚岁 ' + age +
+              ' · ' + xs.score + ' 分 · ' + esc(xs.stage) + '）</div>';
+          })();
       } catch (e) { }
     }
     return '<div class="bazi">' + grid + '</div>' + rows;
