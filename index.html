@@ -1097,13 +1097,13 @@ body{
     const pillars = [['年', bz.year], ['月', bz.month], ['日', bz.day]];
     if (bz.hour) pillars.push(['时', bz.hour]);
     for (const [label, p] of pillars) {
-      if (dayZ === (p.z + 6) % 12) out.push({ type: '冲', pillar: label, text: '日支冲' + label + '支' + ZHI[p.z] });
-      if (dayZ === HE6[p.z]) out.push({ type: '合', pillar: label, text: '日支合' + label + '支' + ZHI[p.z] });
-      if (dayZ === HAI6[p.z]) out.push({ type: '害', pillar: label, text: '日支害' + label + '支' + ZHI[p.z] });
+      if (dayZ === (p.z + 6) % 12) out.push({ type: '冲', pillar: label, text: '冲' + label + '柱' + ZHI[p.z] });
+      if (dayZ === HE6[p.z]) out.push({ type: '合', pillar: label, text: '合' + label + '柱' + ZHI[p.z] });
+      if (dayZ === HAI6[p.z]) out.push({ type: '害', pillar: label, text: '害' + label + '柱' + ZHI[p.z] });
       if (XING_GROUP[dayZ] >= 0 && XING_GROUP[dayZ] === XING_GROUP[p.z] && dayZ !== p.z)
-        out.push({ type: '刑', pillar: label, text: '日支刑' + label + '支' + ZHI[p.z] });
+        out.push({ type: '刑', pillar: label, text: '刑' + label + '柱' + ZHI[p.z] });
       if (dayZ === p.z && [4, 6, 9, 11].indexOf(dayZ) >= 0)
-        out.push({ type: '自刑', pillar: label, text: '日支自刑（' + ZHI[dayZ] + '）' });
+        out.push({ type: '自刑', pillar: label, text: '自刑（' + ZHI[dayZ] + '）' });
       /* 天克地冲 */
       if (dayZ === (p.z + 6) % 12 && GAN_WX(dayG) === KE(GAN_WX(p.g)))
         out.push({ type: '天克地冲', pillar: label, text: '天克地冲' + label + '柱（' + GAN[p.g] + ZHI[p.z] + '）' });
