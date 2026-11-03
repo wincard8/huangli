@@ -4063,6 +4063,9 @@ window.XiejiQiongtong = {
           try {
             S.bz = E.baziOf(q[0], q[1], q[2], q.length > 3 ? q[3] : null);
             S.zodiac = S.bz.year.z;
+            var _lu = E.toLunar(E.gregorianToJDN(q[0], q[1], q[2]));
+            S.bY = _lu.year; S.bM = _lu.month; S.bD = _lu.day; S.bLeap = !!_lu.leap;
+            if (q.length > 3) S.bHz = q[3];
             any = true;
           } catch (e) { }
         }
