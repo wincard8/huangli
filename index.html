@@ -1343,9 +1343,38 @@ body{
     return { verdict: verdict, reasons: reasons, name: name };
   }
 
+  /* 六亲：据《渊海子平》论父/论母/论妻妾/论子息
+     父=偏财　母=正印　兄弟=比肩劫财　男命妻=正财、子=七杀、女=正官；女命夫=正官、子=伤官、女=食神 */
+  function liuQin(bz, male) {
+    const me = bz.dayMaster;
+    const ps = [bz.year, bz.month, bz.day].concat(bz.hour ? [bz.hour] : []);
+    const ganShi = {};   // 透干
+    const cangShi = {};  // 藏干
+    ps.forEach(p => {
+      const s = shiShen(me, p.g);
+      ganShi[s] = (ganShi[s] || 0) + 1;
+      ZHI_CANG[p.z].forEach(g => { const t = shiShen(me, g); cangShi[t] = (cangShi[t] || 0) + 1; });
+    });
+    const statusOf = list => {
+      if (list.some(s => ganShi[s])) return '透干';
+      if (list.some(s => cangShi[s])) return '藏干';
+      return '无';
+    };
+    const rows = [
+      { role: '父', shi: ['偏财'] },
+      { role: '母', shi: ['正印'] },
+      { role: '兄弟', shi: ['比肩', '劫财'] },
+      male ? { role: '妻', shi: ['正财'] } : { role: '夫', shi: ['正官'] },
+      male ? { role: '子', shi: ['七杀'] } : { role: '子', shi: ['伤官'] },
+      male ? { role: '女', shi: ['正官'] } : { role: '女', shi: ['食神'] }
+    ];
+    return rows.map(r => ({ role: r.role, shi: r.shi.join('/'), status: statusOf(r.shi) }));
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
-    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG, geJu, geJuStatus,
+    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG,
+    geJu, geJuStatus, liuQin,
     qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
@@ -1543,6 +1572,30 @@ window.XiejiMingli = {
    "name": "以日为主",
    "juan": "论日为主",
    "text": "论日为主予尝观唐书，所载有李虚中者，取人所生年、月、日、时干支生克论命之贵贱、寿夭之说，已详之矣。至於宋时，方有子平之说。取日干为主，以年为根，以月为苗，以日为花，以时为果，以生旺死绝，休囚制化决人生休咎，其理必然矣，复有何疑哉。一曰官，分之阴阳，曰官、曰杀，甲乙见庚辛也。(甲见庚为杀，阳见阳也。见辛为官，阳见阴也。乙木庚为官，见辛为杀。)二曰财，分之阴阳，曰正财、偏财，甲乙见戊己是也。(阳见阴为"
+  },
+  {
+   "src": "渊海子平",
+   "name": "六亲·父",
+   "juan": "论父",
+   "text": "论父偏财是父，乃印绶之官星也。如甲日以戊为父，再见甲寅字或木局全，或临死绝冲刑之地，主克父也。不然主离异、不睦或疾病伤残。若得庚字、申字救庶，无大害。如甲旺戊衰，亦主有疾少靠。如戊临生旺贵人、天月德，亦主有贵。更得丙丁生助，享父之福无穷。如临杀地，父死他乡。如居衰败受制之处，墓绝之地，主父平常，不得"
+  },
+  {
+   "src": "渊海子平",
+   "name": "六亲·母",
+   "juan": "论母",
+   "text": "论母正印者，乃生我之身也。如甲日以癸为母，遇己丑本主克母。(癸为印，逢己丑未乃是土克水，故云克母)。见多主母嫁二夫。一戊失地(戊乃癸之夫)或被克，主母伤前夫。戊字受生或印临桃花沐浴，母有外情。如印长生，主母慈淑寿长，益夫和子。母如临羊刃杀地，或值墓绝，孤寡，主"
+  },
+  {
+   "src": "渊海子平",
+   "name": "六亲·妻妾",
+   "juan": "论妻妾",
+   "text": "论妻妾正财为正妻；偏财，妾也。甲木见己土为正财，戊土为偏财。又见乙木局(亥卯未)伤妻，甲寅克妻也，更主妻不正(不正谓淫贱也)。财衰败墓绝，主妻有疾不贤，否则年高再嫁。见癸字则妾不正(癸乃戊之妻也)。见己土丑未字，则主自安。比肩分夺，财临桃花，主妻妾私通。日下、月下坐财官，主妻多内助，更得妻财。偏财得位，妾胜於妻；正财自旺，妻不容妾。官杀重"
+  },
+  {
+   "src": "渊海子平",
+   "name": "六亲·子息",
+   "juan": "论子息",
+   "text": "论子息七杀者，子也。如甲见庚申是子，辛酉是女。若见丙火午寅，或杀临羊刃杀宫，主克子，不然疾病不肖。遇戊己得令，则子得力和顺。见丙巳字，女不正。若临沐浴桃花，更兼暗合食神多者，其女私通。若杀临长生、月德、天德所临之地，贵人禄马，食神财乡，言有强父贵子，要禀中和。阳日阳时男见重，阳日阴时先男後女，阴日阴时女见重，阴日阳时先女後男。伤官见官，子孙凶顽。时上伤官及空亡，难为子息。女命取"
   }
  ]
 };
@@ -3145,7 +3198,10 @@ window.XiejiQiongtong = {
         (_gj.by === '月令临官' ? '临官' : _gj.by === '月令帝旺' ? '帝旺' : _gj.by + esc(E.GAN[_gj.gan])) + '）· <b>' +
         esc(_st.verdict) + '格</b>' +
         (_st.reasons.length ? '　<span class="mini">' + esc(_st.reasons.join('；')) + '</span>' : '') + '</div>';
-      rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五；旺衰取卷二「要以中和為貴」；取格据《渊海子平》「月支取格，乃分贵贱」；成败据《看命口诀》「逢官看财，逢煞看印，逢印看官」。</div>';
+      rows += '<div class="dress-txt">六亲：' + E.liuQin(b, S.bMale).map(function (x) {
+        return esc(x.role) + '·' + esc(x.shi) + '（' + esc(x.status) + '）';
+      }).join('　') + '</div>';
+      rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五；旺衰取卷二「要以中和為貴」；取格据《渊海子平》「月支取格，乃分贵贱」；成败据《看命口诀》「逢官看财，逢煞看印，逢印看官」；六亲据论父/论母/论妻妾/论子息。</div>';
       rows += '<div class="dress-txt">五行：' + E.WX_NAME.map(function (n, i) {
         return n + wx.counts[i];
       }).join(' ') + '</div>';
