@@ -1310,26 +1310,27 @@ body{
 
     const reasons = [];
     let verdict = '平';
+    let bing = null, yao = null, yaoBy = '';
     const name = gj.name;
 
     if (name === '正官格') {
-      if (touAny(['伤官'])) { verdict = '破'; reasons.push('伤官见官，格破'); }
+      if (touAny(['伤官'])) { verdict = '破'; reasons.push('伤官见官，格破'); bing = '伤官'; yao = '正印'; yaoBy = '印制伤官'; }
       else if (hasAny(['正财', '偏财'])) { verdict = '成'; reasons.push('逢官看财，财生官'); }
-      if (touAny(['七杀'])) { verdict = verdict === '成' ? '平' : '破'; reasons.push('官杀混杂'); }
+      if (touAny(['七杀'])) { verdict = verdict === '成' ? '平' : '破'; reasons.push('官杀混杂'); bing = bing || '七杀'; yao = yao || '食神'; yaoBy = yaoBy || '食神制杀'; }
     } else if (name === '偏官格') {
       if (hasAny(['食神', '正印', '偏印'])) { verdict = '成'; reasons.push('煞看印、食神制杀'); }
-      if (hasAny(['正财', '偏财']) && !hasAny(['食神', '正印', '偏印'])) { verdict = '破'; reasons.push('财生煞而无制'); }
+      if (hasAny(['正财', '偏财']) && !hasAny(['食神', '正印', '偏印'])) { verdict = '破'; reasons.push('财生煞而无制'); bing = '正财'; yao = '比肩'; yaoBy = '比劫制财'; }
     } else if (name === '正财格' || name === '偏财格') {
-      if (touAny(['比肩', '劫财'])) { verdict = '破'; reasons.push('比劫夺财'); }
+      if (touAny(['比肩', '劫财'])) { verdict = '破'; reasons.push('比劫夺财'); bing = '比肩'; yao = '正官'; yaoBy = '官杀制比劫'; }
       else if (hasAny(['食神', '伤官'])) { verdict = '成'; reasons.push('食伤生财'); }
     } else if (name === '印绶格' || name === '枭神格') {
-      if (touAny(['正财', '偏财'])) { verdict = '破'; reasons.push('财破印'); }
+      if (touAny(['正财', '偏财'])) { verdict = '破'; reasons.push('财破印'); bing = '正财'; yao = '比肩'; yaoBy = '比劫制财'; }
       else if (hasAny(['正官', '七杀'])) { verdict = '成'; reasons.push('逢印看官，官印相生'); }
     } else if (name === '食神格') {
-      if (touAny(['偏印'])) { verdict = '破'; reasons.push('枭神夺食'); }
+      if (touAny(['偏印'])) { verdict = '破'; reasons.push('枭神夺食'); bing = '偏印'; yao = '正财'; yaoBy = '财制枭印'; }
       else if (hasAny(['正财', '偏财'])) { verdict = '成'; reasons.push('食神生财'); }
     } else if (name === '伤官格') {
-      if (touAny(['正官'])) { verdict = '破'; reasons.push('伤官见官'); }
+      if (touAny(['正官'])) { verdict = '破'; reasons.push('伤官见官'); bing = '伤官'; yao = '正印'; yaoBy = '印制伤官'; }
       else if (hasAny(['正财', '偏财'])) { verdict = '成'; reasons.push('伤官生财'); }
     } else if (name === '建禄格' || name === '月刃格') {
       if (hasAny(['正财', '偏财', '正官', '七杀'])) { verdict = '成'; reasons.push('禄刃喜财官'); }
@@ -1340,7 +1341,7 @@ body{
     const chong = ps.some(p => p.z === (bz.month.z + 6) % 12);
     if (chong) { reasons.push('月令被冲，格根不稳'); if (verdict === '成') verdict = '平'; }
 
-    return { verdict: verdict, reasons: reasons, name: name };
+    return { verdict: verdict, reasons: reasons, name: name, bing: bing, yao: yao, yaoBy: yaoBy };
   }
 
   /* 十二长生：阳干顺行、阴干逆行
@@ -3275,6 +3276,15 @@ window.XiejiQiongtong = {
         (_gj.by === '月令临官' ? '临官' : _gj.by === '月令帝旺' ? '帝旺' : _gj.by + esc(E.GAN[_gj.gan])) + '）· <b>' +
         esc(_st.verdict) + '格</b>' +
         (_st.reasons.length ? '　<span class="mini">' + esc(_st.reasons.join('；')) + '</span>' : '') + '</div>';
+      if (_st.bing) {
+        var OFF = { '比肩': 0, '劫财': 0, '食神': 1, '伤官': 1, '偏财': 2, '正财': 2, '七杀': 3, '正官': 3, '偏印': 4, '正印': 4 };
+        var meWx = Math.floor(b.dayMaster / 2) % 5;
+        var yaoWx = (meWx + (OFF[_st.yao] || 0)) % 5;
+        var inFav = S.favNow && S.favNow.indexOf(yaoWx) >= 0;
+        rows += '<div class="dress-txt">病药：病＝' + esc(_st.bing) + '，药＝<b>' + esc(_st.yao) + '</b>' +
+          '（' + esc(_st.yaoBy) + '·' + esc(E.WX_NAME[yaoWx]) + '）' +
+          '　<span class="mini">' + (inFav ? '药在喜用，可解' : '药不在喜用，需岁运补') + '</span></div>';
+      }
       rows += '<div class="dress-txt">六亲：' + E.liuQin(b, S.bMale).map(function (x) {
         return esc(x.role) + '·' + esc(x.shi) + '（' + esc(x.status) + (x.stage ? '·' + esc(x.stage) : '') + '）';
       }).join('　') + '</div>';
