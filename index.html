@@ -3502,7 +3502,7 @@ window.XiejiQiongtong = {
 
     var note = [];
     var D = displayLists(r);
-    if (r.policy === 'none') note.push('本日等第「' + r.gradeName + '」，' + r.heavy.join('、') + '当值，诸事不宜，只列"止不忌"之事。');
+    if (r.policy === 'none') note.push('本日等第「' + r.gradeName + '」，' + r.heavy.join('、') + '当值，诸事不宜；「止不忌」者只是不忌，不列为宜。');
     if (D.bothCount) note.push('神煞交战：' + D.bothCount + ' 项宜忌两见，依「' + (r.policy === 'both' ? '从宜亦从忌' : '从宜不从忌') + '」只列于忌。');
     if (r.baiji.length) note.push('彭祖百忌（俗忌，不参与判等）：' + esc(r.dayGZText) + '日忌' + r.baiji.join('、') + '。');
 
