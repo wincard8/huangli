@@ -1117,7 +1117,7 @@ body{
       if (dayZ === (p.z + 6) % 12) out.push({ type: '冲', pillar: label, text: '冲' + label + '柱' + ZHI[p.z] });
       if (dayZ === HE6[p.z]) out.push({ type: '合', pillar: label, text: '合' + label + '柱' + ZHI[p.z] });
       if (dayZ === HAI6[p.z]) out.push({ type: '害', pillar: label, text: '害' + label + '柱' + ZHI[p.z] });
-      if (XING_GROUP[dayZ] >= 0 && XING_GROUP[dayZ] === XING_GROUP[p.z] && dayZ !== p.z)
+      if (XING_GROUP[dayZ] >= 0 && XING_GROUP[dayZ] === XING_GROUP[p.z] && dayZ !== p.z && XING_GROUP[dayZ] !== 3)
         out.push({ type: '刑', pillar: label, text: '刑' + label + '柱' + ZHI[p.z] });
       if (dayZ === p.z && [4, 6, 9, 11].indexOf(dayZ) >= 0)
         out.push({ type: '自刑', pillar: label, text: '自刑（' + ZHI[dayZ] + '）' });
@@ -1402,7 +1402,7 @@ body{
     const ps = [bz.year, bz.month, bz.day].concat(bz.hour ? [bz.hour] : []);
     ps.forEach(p => {
       if (zhi === (p.z + 6) % 12) s -= 6;
-      else if (XING_GROUP[zhi] >= 0 && XING_GROUP[zhi] === XING_GROUP[p.z] && zhi !== p.z) s -= 3;
+      else if (XING_GROUP[zhi] >= 0 && XING_GROUP[zhi] === XING_GROUP[p.z] && zhi !== p.z && XING_GROUP[zhi] !== 3) s -= 3;
     });
     return { score: Math.max(0, Math.min(100, Math.round(s))), stage: cs };
   }
