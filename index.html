@@ -71,10 +71,20 @@ body{
   text-align:center}
 .tag.tap{cursor:pointer}
 .tag.tap::after{content:"›";margin-left:3px;opacity:.45;font-size:10px}
-.bazi{display:flex;gap:8px;margin-bottom:2px}
-.bazi>div{flex:1;text-align:center;background:#FFFDF8;border:1px solid var(--line);border-radius:8px;padding:7px 2px}
+.bazi{display:flex;gap:8px;margin-bottom:2px}.bazi>div{flex:1;text-align:center;background:#FFFDF8;border:1px solid var(--line);border-radius:8px;padding:7px 2px}
 .bazi>div span{display:block;font-size:10.5px;color:var(--muted);margin-bottom:2px}
 .bazi>div b{font-size:19px;letter-spacing:1px;color:var(--ink)}
+.favor{margin-top:8px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.wx{display:inline-block;padding:1px 7px;border-radius:6px;font-size:12.5px;font-weight:600;margin-right:2px}
+.wx.w0{background:#E8F3E3;color:#3C6B2E}
+.wx.w1{background:#FBE9E6;color:#A8342A}
+.wx.w2{background:#F3ECDD;color:#8A6B2F}
+.wx.w3{background:#EDEDED;color:#5B5B5B}
+.wx.w4{background:#E4EDF7;color:#28527A}
+.frow{display:flex;gap:8px;margin-top:8px}
+.fchip{flex:1;text-align:center;padding:10px 0;border:1px solid var(--line);border-radius:8px;
+  background:#fff;font-size:15px;color:var(--ink);cursor:pointer}
+.fchip.on{background:var(--red);color:#fff;border-color:var(--red)}
 .qitem{border-bottom:1px solid var(--line);padding:9px 0}
 .qitem:last-child{border-bottom:0}
 .qitem summary{cursor:pointer;font-size:14.5px;color:var(--ink);list-style:none;outline:none}
@@ -1061,10 +1071,13 @@ body{
   function baziOf(y, m, d, hourZhi) {
     const r = computeDay(y, m, d);
     const hz = (hourZhi === undefined || hourZhi === null) ? null : hourZhi;
-    const yg = r.yearGZ % 10, mg = r.monthGZ % 10, dg = r.dayGZ % 10;
+    const yg = r.yearGZ % 10, dg = r.dayGZ % 10;
+    const mg = (r.monthGZ && typeof r.monthGZ === 'object')
+      ? { g: r.monthGZ.stem, z: r.monthGZ.branch, idx: r.monthGZ.index }
+      : { g: r.monthGZ % 10, z: r.monthGZ % 12, idx: r.monthGZ };
     return {
       year: { g: yg, z: r.yearGZ % 12, idx: r.yearGZ },
-      month: { g: mg, z: r.monthZhi, idx: r.monthGZ },
+      month: mg,
       day: { g: dg, z: r.dayZhi, idx: r.dayGZ },
       hour: hz === null ? null : { g: hourGan(dg, hz), z: hz },
       dayMaster: dg,
@@ -1113,9 +1126,57 @@ body{
     return { list: out, shiShen: shi, kong: kong, kongHit: pillars.filter(pp => kong.indexOf(pp[1].z) >= 0).map(pp => pp[0]) };
   }
 
+  /* ---------------- 五行旺衰与喜用（基础算法，非命理断言） ---------------- */
+  const WX_NAME = ['木', '火', '土', '金', '水'];
+  const ZHI_WX = [4, 2, 0, 0, 2, 1, 1, 2, 3, 3, 2, 4]; // 子水 丑土 寅木 卯木 辰土 巳火 午火 未土 申金 酉金 戌土 亥水
+
+  function baziWuxing(bz) {
+    const ps = [bz.year, bz.month, bz.day].concat(bz.hour ? [bz.hour] : []);
+    const gw = ps.map(p => GAN_WX(p.g));
+    const zw = ps.map(p => ZHI_WX[p.z]);
+    const cnt = [0, 0, 0, 0, 0];
+    gw.forEach(w => cnt[w]++); zw.forEach(w => cnt[w]++);
+    const me = GAN_WX(bz.dayMaster);
+    const shengMe = (me + 4) % 5, keMe = (me + 3) % 5, woKe = (me + 2) % 5, woSheng = (me + 1) % 5;
+
+    let support = 0, total = 0;
+    ps.forEach((p, i) => {
+      total += 2;
+      if (gw[i] === me || gw[i] === shengMe) support++;
+      if (zw[i] === me || zw[i] === shengMe) support++;
+    });
+    const monthSupport = (zw[1] === me || zw[1] === shengMe);
+    support += monthSupport ? 1.2 : -0.8;
+
+    const strong = support >= total / 2;
+    let fav = strong ? [keMe, woKe, woSheng] : [shengMe, me];
+    let unf = strong ? [shengMe, me] : [keMe, woKe, woSheng];
+    const tiaohou = [11, 0, 1].indexOf(bz.month.z) >= 0 ? 1 : ([5, 6, 7].indexOf(bz.month.z) >= 0 ? 4 : -1);
+    if (tiaohou >= 0 && fav.indexOf(tiaohou) < 0) fav = fav.concat([tiaohou]);
+    unf = unf.filter(w => fav.indexOf(w) < 0);
+
+    return {
+      counts: cnt, support: support, total: total,
+      strong: strong, strengthText: strong ? '身强' : '身弱',
+      deLing: monthSupport,
+      fav: fav, unf: unf, tiaohou: tiaohou,
+      favText: fav.map(w => WX_NAME[w]).join('、'),
+      unfText: unf.map(w => WX_NAME[w]).join('、')
+    };
+  }
+
+  /* 当日干支五行对喜忌的粗打分（0–100） */
+  function scoreOf(dayGan, dayZhi, fav, unf) {
+    let s = 50;
+    const g = GAN_WX(dayGan), z = ZHI_WX[dayZhi];
+    if (fav.indexOf(g) >= 0) s += 14; else if (unf.indexOf(g) >= 0) s -= 14;
+    if (fav.indexOf(z) >= 0) s += 10; else if (unf.indexOf(z) >= 0) s -= 10;
+    return Math.max(0, Math.min(100, Math.round(s)));
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
-    baziOf, shiShen, dayRelations, xunKong,
+    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
   };
@@ -1297,7 +1358,8 @@ window.XiejiQuotes = {
     tab: 'home', sheet: '', calY: now.getFullYear(), calM: now.getMonth() + 1,
     tsTab: 'yi', thing: 0, days: 60, quoteOpen: -1,
     zodiac: null, zMode: 'range', zMonth: '',
-    bY: 1990, bM: 1, bD: 1, bLeap: false, bHz: null, qName: '', bz: null
+    bY: 1990, bM: 1, bD: 1, bLeap: false, bHz: null, qName: '', bz: null,
+    favManual: null, unfManual: null, wx: null, favNow: null, unfNow: null
   };
   try {
     var _z = localStorage.getItem('xieji.zodiac');
@@ -1311,6 +1373,11 @@ window.XiejiQuotes = {
         S.bY = _o.bY; S.bM = _o.bM; S.bD = _o.bD; S.bLeap = !!_o.bLeap;
         S.bHz = (_o.bHz === null || _o.bHz === undefined) ? null : +_o.bHz;
       }
+    }
+    var _f = localStorage.getItem('xieji.favor');
+    if (_f) {
+      var _fo = JSON.parse(_f);
+      if (_fo && _fo.fav && _fo.fav.length) { S.favManual = _fo.fav; S.unfManual = _fo.unf || []; }
     }
   } catch (e) { /* 本地文件可能禁用 localStorage */ }
   function saveZodiac(v) {
@@ -1356,6 +1423,19 @@ window.XiejiQuotes = {
       '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十'][d - 1];
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  var SHISHEN_TXT = {
+    '比肩': '同伴相助，宜合作、找搭档',
+    '劫财': '争利分财，防破财、忌合伙',
+    '食神': '才华舒展，宜创作、餐饮、洽谈',
+    '伤官': '锋芒外露，宜表达创新，忌顶撞上级',
+    '偏财': '意外之财，宜投资、谈生意',
+    '正财': '稳定收入，宜签合约、求财',
+    '七杀': '压力冲突，宜静守，忌冒险',
+    '正官': '名分责任，宜求职、见贵人',
+    '偏印': '思绪偏门，宜钻研，忌多疑',
+    '正印': '贵人扶持，宜学习、考证、求教'
+  };
 
   function modern(list) {
     var out = [], seen = {};
@@ -1540,19 +1620,34 @@ window.XiejiQuotes = {
     var grid = cols.map(function (c) {
       return '<div><span class="mini">' + c[0] + '柱</span><b class="serif">' + esc(c[1]) + '</b></div>';
     }).join('');
+    var wx = S.wx;
     var rows = '';
-    if (rel) {
-      rows += '<div class="dress-txt" style="margin-top:10px">日主 <b>' + GAN[b.dayMaster] + '</b>；今日' +
-        esc(r.dayGZText) + '日，为你的「<b>' + rel.shiShen + '</b>」。</div>';
-      rows += rel.list.length
-        ? '<div class="dress-txt">与命局：' + rel.list.map(function (x) { return esc(x.text); }).join('、') + '</div>'
-        : '<div class="dress-txt">与命局无冲、无刑、无合、无害。</div>';
-      if (rel.kongHit.length) {
-        rows += '<div class="dress-txt">今日旬空 ' + rel.kong.map(function (z) { return ZHI[z]; }).join('') +
-          '，落你的' + rel.kongHit.join('、') + '柱。</div>';
-      }
+    if (wx) {
+      rows += '<div class="dress-txt" style="margin-top:10px">日主 <b>' + GAN[b.dayMaster] + '</b>（' +
+        esc(wx.strengthText) + (wx.deLing ? '·得令' : '·失令') + '）；今日' +
+        esc(r.dayGZText) + '日，为你的「<b>' + rel.shiShen + '</b>」。<span class="mini">' +
+        esc(SHISHEN_TXT[rel.shiShen] || '') + '</span></div>';
+      rows += '<div class="dress-txt">五行：' + E.WX_NAME.map(function (n, i) {
+        return n + wx.counts[i];
+      }).join(' ') + '</div>';
+      rows += '<div class="favor"><span class="mini">喜</span>' + favChips(S.favNow) +
+        '<span class="mini" style="margin-left:8px">忌</span>' + favChips(S.unfNow) +
+        '<button class="chip" data-act="sheet:favor" style="margin-left:8px">调整</button></div>';
+      if (S.favManual) rows += '<div class="mini" style="margin-top:6px">喜忌为手动设定；<span style="color:var(--red)" data-act="favreset">恢复自动</span></div>';
+    }
+    rows += rel.list.length
+      ? '<div class="dress-txt">与命局：' + rel.list.map(function (x) { return esc(x.text); }).join('、') + '</div>'
+      : '<div class="dress-txt">与命局无冲、无刑、无合、无害。</div>';
+    if (rel.kongHit.length) {
+      rows += '<div class="dress-txt">今日旬空 ' + rel.kong.map(function (z) { return ZHI[z]; }).join('') +
+        '，落你的' + rel.kongHit.join('、') + '柱。</div>';
     }
     return '<div class="bazi">' + grid + '</div>' + rows;
+  }
+
+  function favChips(arr) {
+    if (!arr || !arr.length) return '<span class="mini">—</span>';
+    return arr.map(function (w) { return '<b class="wx w' + w + '">' + E.WX_NAME[w] + '</b>'; }).join('');
   }
 
   function viewHome(r) {
@@ -1561,6 +1656,9 @@ window.XiejiQuotes = {
     tags.push('<span class="tag">农历' + esc(r.yearGZText) + '年</span>');
     tags.push('<span class="tag">' + esc(r.jianchuName) + '</span>');
     tags.push('<span class="tag' + (r.level >= 2 ? ' warn' : '') + '">' + esc(r.gradeName) + '·' + esc(r.levelText) + '</span>');
+    if (score !== null) {
+      tags.push('<span class="tag' + (score < 40 ? ' warn' : '') + '">对你 ' + score + ' 分</span>');
+    }
     r.shensha.forEach(function (s) {
       if (s.kind === '吉') tags.push('<span class="tag tap" data-act="yili:' + encodeURIComponent(s.name) + '">' + esc(s.name) + '</span>');
     });
@@ -1593,7 +1691,21 @@ window.XiejiQuotes = {
     }).join('');
 
     var rel = null;
+    S.wx = S.bz ? E.baziWuxing(S.bz) : null;
+    S.favNow = (S.favManual && S.favManual.length) ? S.favManual : (S.wx ? S.wx.fav : null);
+    S.unfNow = (S.unfManual && S.unfManual.length) ? S.unfManual : (S.wx ? S.wx.unf : null);
     if (S.bz) { try { rel = E.dayRelations(r.dayGZ, r.dayZhi, S.bz); } catch (e) { rel = null; } }
+    var score = null;
+    if (S.favNow) {
+      score = E.scoreOf(r.dayGZ, r.dayZhi, S.favNow, S.unfNow || []);
+      if (rel) rel.list.forEach(function (x) {
+        if (x.type === '天克地冲') score -= 30;
+        else if (x.type === '冲' && x.pillar === '日') score -= 25;
+        else if (x.type === '冲') score -= 12;
+        else if (x.type === '刑' || x.type === '自刑') score -= 8;
+      });
+      score = Math.max(0, Math.min(100, score));
+    }
     var harsh = rel ? rel.list.filter(function (x) {
       return x.type === '冲' || x.type === '天克地冲' || x.type === '刑' || x.type === '自刑';
     }) : [];
@@ -1888,6 +2000,23 @@ window.XiejiQuotes = {
 
   /* ---------------- 弹层 ---------------- */
   function sheetHtml(r) {
+    if (S.sheet === 'favor') {
+      if (!S.favManual) {
+        S.favManual = S.wx ? S.wx.fav.slice() : [];
+        S.unfManual = S.wx ? S.wx.unf.slice() : [];
+      }
+      var frow = function (list, kind) {
+        return E.WX_NAME.map(function (n, i) {
+          var on = list.indexOf(i) >= 0;
+          return '<span class="fchip' + (on ? ' on' : '') + '" data-act="wtog:' + kind + ':' + i + '">' + n + '</span>';
+        }).join('');
+      };
+      return '<div class="sheet-hd"><span>喜忌设置</span><span class="chip" data-act="closesheet">关闭</span></div>' +
+        '<div class="hinge">喜用（对我有利）</div><div class="frow">' + frow(S.favManual, 'fav') + '</div>' +
+        '<div class="hinge" style="margin-top:14px">忌讳（对我不利）</div><div class="frow">' + frow(S.unfManual, 'unf') + '</div>' +
+        '<div class="mini" style="margin-top:12px">系统按四柱五行旺衰给初判；懂的可以自己改，不必照单全收。两边都勾时以"喜"为准。</div>' +
+        '<button class="btn" data-act="favsave" style="margin-top:12px">保存</button>';
+    }
     if (S.sheet === 'yili') {
       var Q0 = window.XiejiQuotes || { yili: [] };
       var ent = (Q0.yili || []).filter(function (x) { return x.name === S.qName; })[0];
@@ -2064,6 +2193,28 @@ window.XiejiQuotes = {
     if (k === 'quote') { S.quoteOpen = +p[1]; S.sheet = 'quote'; render(); return; }
     if (k === 'ics') { downloadICS(); return; }
     if (k === 'icsh') { downloadHoursICS(); return; }
+    if (k === 'wtog') {
+      var kind = p[1], idx = +p[2];
+      var arr = kind === 'fav' ? S.favManual : S.unfManual;
+      if (!arr) arr = kind === 'fav' ? (S.favManual = []) : (S.unfManual = []);
+      var at = arr.indexOf(idx);
+      if (at >= 0) arr.splice(at, 1); else arr.push(idx);
+      render(); return;
+    }
+    if (k === 'favsave') {
+      try {
+        localStorage.setItem('xieji.favor', JSON.stringify({ fav: S.favManual, unf: S.unfManual }));
+      } catch (e) { }
+      S.sheet = '';
+      toast('已保存喜忌设定');
+      render(); return;
+    }
+    if (k === 'favreset') {
+      S.favManual = null; S.unfManual = null;
+      try { localStorage.removeItem('xieji.favor'); } catch (e) { }
+      toast('已恢复系统判定');
+      render(); return;
+    }
     if (k === 'yili') { S.qName = decodeURIComponent(p[1] || ''); S.sheet = 'yili'; render(); return; }
     if (k === 'savebirth') {
       var jdnB = E.lunarToJDN(S.bY, S.bM, S.bD, S.bLeap);
