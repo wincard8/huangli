@@ -1437,6 +1437,111 @@ window.XiejiQuotes = {
     '正印': '贵人扶持，宜学习、考证、求教'
   };
 
+  /* ---------------- 对比海报 ---------------- */
+  var GRADE_SCORE = { '上': 95, '上次': 85, '中': 70, '中次': 55, '下': 40, '下下': 20 };
+
+  function wrapText(x, text, cx, y, maxW, lh) {
+    var line = '', lines = [];
+    for (var i = 0; i < text.length; i++) {
+      var t = line + text[i];
+      if (x.measureText(t).width > maxW && line) { lines.push(line); line = text[i]; }
+      else line = t;
+    }
+    if (line) lines.push(line);
+    lines.forEach(function (l, i) { x.fillText(l, cx, y + i * lh); });
+    return y + lines.length * lh;
+  }
+
+  function makePoster(r, score, rel) {
+    var W = 750, H = 1000, dpr = 2;
+    var c = document.createElement('canvas');
+    c.width = W * dpr; c.height = H * dpr;
+    var x = c.getContext('2d');
+    x.scale(dpr, dpr);
+    x.fillStyle = '#F7F2E9'; x.fillRect(0, 0, W, H);
+    x.strokeStyle = '#DCCBA6'; x.lineWidth = 3; x.strokeRect(26, 26, W - 52, H - 52);
+    x.textAlign = 'center';
+    x.fillStyle = '#7A6A52';
+    x.font = '600 24px "Songti SC","SimSun",serif';
+    x.fillText('协 纪 黄 历', W / 2, 92);
+    x.fillStyle = '#2B2620';
+    x.font = '600 40px "Songti SC","SimSun",serif';
+    x.fillText(r.dayGZText + '日', W / 2, 160);
+    x.font = '22px sans-serif';
+    x.fillStyle = '#7A6A52';
+    x.fillText(S.y + '年' + S.m + '月' + S.d + '日 · ' + lunarText(r), W / 2, 196);
+
+    var trad = GRADE_SCORE[r.gradeName] || 70;
+
+    /* 传统分 */
+    x.fillStyle = '#8C1620';
+    x.font = '600 88px "Songti SC","SimSun",serif';
+    x.fillText(String(trad), W / 2 - 110, 340);
+    x.font = '24px sans-serif';
+    x.fillStyle = '#7A6A52';
+    x.fillText('传统黄历', W / 2 - 110, 376);
+    x.font = '20px sans-serif';
+    x.fillText(r.gradeName + ' · ' + r.levelText, W / 2 - 110, 404);
+
+    /* 个人分 */
+    x.fillStyle = score < 40 ? '#4A4239' : '#B3202A';
+    x.font = '600 88px "Songti SC","SimSun",serif';
+    x.fillText(String(score), W / 2 + 110, 340);
+    x.font = '24px sans-serif';
+    x.fillStyle = '#7A6A52';
+    x.fillText('你的分数', W / 2 + 110, 376);
+    x.font = '20px sans-serif';
+    x.fillText(S.favNow ? ('喜' + S.favNow.map(function (w) { return E.WX_NAME[w]; }).join('')) : '未设喜忌', W / 2 + 110, 404);
+
+    x.strokeStyle = '#DCCBA6'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(90, 450); x.lineTo(W - 90, 450); x.stroke();
+
+    /* 结论 */
+    var diff = trad - score;
+    var head, sub;
+    if (diff >= 25) { head = '大家都在抢的吉日'; sub = '其实不太适合你'; }
+    else if (diff <= -15) { head = '别人眼里平常的一天'; sub = '对你却有不少助力'; }
+    else { head = '传统与你的看法'; sub = '大体一致'; }
+
+    x.fillStyle = '#2B2620';
+    x.font = '600 38px "Songti SC","SimSun",serif';
+    x.fillText(head, W / 2, 520);
+    x.fillText(sub, W / 2, 578);
+
+    /* 原因 */
+    var reasons = [];
+    if (rel) rel.list.forEach(function (t) {
+      if (t.type === '冲' || t.type === '刑' || t.type === '天克地冲' || t.type === '自刑') reasons.push(t.text);
+    });
+    if (S.favNow) {
+      var ganWx = Math.floor((r.dayGZ % 10) / 2) % 5;
+      var zhiWx = E.ZHI_WX[r.dayZhi];
+      var tg = [];
+      if (S.favNow.indexOf(ganWx) >= 0) tg.push('日干' + E.WX_NAME[ganWx] + '为你所喜');
+      else if (S.unfNow && S.unfNow.indexOf(ganWx) >= 0) tg.push('日干' + E.WX_NAME[ganWx] + '为你所忌');
+      if (S.favNow.indexOf(zhiWx) >= 0) tg.push('日支' + E.WX_NAME[zhiWx] + '为你所喜');
+      else if (S.unfNow && S.unfNow.indexOf(zhiWx) >= 0) tg.push('日支' + E.WX_NAME[zhiWx] + '为你所忌');
+      if (tg.length) reasons.push(tg.join('，'));
+    }
+    if (!reasons.length) reasons.push('与命局无冲刑，五行不违喜忌');
+
+    x.font = '26px sans-serif';
+    x.fillStyle = '#4A4239';
+    var yy = 650;
+    reasons.slice(0, 3).forEach(function (t) {
+      x.fillText('· ' + t, W / 2, yy);
+      yy += 46;
+    });
+
+    /* 底 */
+    x.fillStyle = '#A2968A';
+    x.font = '20px sans-serif';
+    x.fillText('四柱 ' + (S.bz ? S.bz.yearText + ' ' + S.bz.monthText + ' ' + S.bz.dayText + (S.bz.hourText ? ' ' + S.bz.hourText : '') : ''), W / 2, 900);
+    x.fillText('wincard8.github.io/huangli', W / 2, 936);
+
+    return c.toDataURL('image/png');
+  }
+
   function modern(list) {
     var out = [], seen = {};
     list.forEach(function (t) {
@@ -1642,6 +1747,7 @@ window.XiejiQuotes = {
       rows += '<div class="dress-txt">今日旬空 ' + rel.kong.map(function (z) { return ZHI[z]; }).join('') +
         '，落你的' + rel.kongHit.join('、') + '柱。</div>';
     }
+    rows += '<button class="btn ghost" data-act="poster" style="margin-top:10px">生成对比海报</button>';
     return '<div class="bazi">' + grid + '</div>' + rows;
   }
 
@@ -1668,6 +1774,7 @@ window.XiejiQuotes = {
       });
       score = Math.max(0, Math.min(100, score));
     }
+    S.scoreS = score; S.relNow = rel;
     if (isToday()) tags.push('<span class="tag red">今天</span>');
     tags.push('<span class="tag">农历' + esc(r.yearGZText) + '年</span>');
     tags.push('<span class="tag">' + esc(r.jianchuName) + '</span>');
@@ -2000,6 +2107,16 @@ window.XiejiQuotes = {
 
   /* ---------------- 弹层 ---------------- */
   function sheetHtml(r) {
+    if (S.sheet === 'poster') {
+      if (!S.poster) {
+        try { S.poster = makePoster(r, S.scoreS, S.relNow); } catch (e) { S.poster = ''; }
+      }
+      return '<div class="sheet-hd"><span>对比海报</span><span class="chip" data-act="closesheet">关闭</span></div>' +
+        (S.poster ? '<img src="' + S.poster + '" style="width:100%;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.12)">' +
+          '<div class="mini" style="margin-top:10px;text-align:center">长按图片保存，或点按钮下载</div>' +
+          '<a class="btn" download="xieji-compare.png" href="' + S.poster + '" style="display:block;text-align:center;margin-top:10px;text-decoration:none">下载图片</a>'
+          : '<div class="empty-tip">未生成</div>');
+    }
     if (S.sheet === 'favor') {
       if (!S.favManual) {
         S.favManual = S.wx ? S.wx.fav.slice() : [];
@@ -2193,6 +2310,14 @@ window.XiejiQuotes = {
     if (k === 'quote') { S.quoteOpen = +p[1]; S.sheet = 'quote'; render(); return; }
     if (k === 'ics') { downloadICS(); return; }
     if (k === 'icsh') { downloadHoursICS(); return; }
+    if (k === 'poster') {
+      try {
+        S.poster = makePoster(day(), S.scoreS, S.relNow);
+        S.sheet = 'poster';
+        render();
+      } catch (e) { toast('生成失败：' + e.message); }
+      return;
+    }
     if (k === 'wtog') {
       var kind = p[1], idx = +p[2];
       var arr = kind === 'fav' ? S.favManual : S.unfManual;
@@ -2261,24 +2386,27 @@ window.XiejiQuotes = {
   function bootHash() {
     var h = (location.hash || '').replace(/^#/, '');
     if (!h) return false;
-    var kv = h.split('=');
-    if (kv[0] === 'tab' && TITLES[kv[1]]) { S.tab = kv[1]; return true; }
-    if (kv[0] === 'sheet') { S.sheet = kv[1]; return true; }
-    if (kv[0] === 'date' && kv[1]) {
-      var p = kv[1].split('-').map(Number);
-      if (p.length === 3) { S.y = p[0]; S.m = p[1]; S.d = p[2]; S.calY = p[0]; S.calM = p[1]; return true; }
-    }
-    if (kv[0] === 'birth' && kv[1]) {
-      var q = kv[1].split('-').map(Number);
-      if (q.length >= 3) {
-        try {
-          S.bz = E.baziOf(q[0], q[1], q[2], q.length > 3 ? q[3] : null);
-          S.zodiac = S.bz.year.z;
-        } catch (e) { }
-        return true;
+    var pairs = h.split('&'), any = false;
+    pairs.forEach(function (seg) {
+      var kv = seg.split('=');
+      var k = kv[0], v = kv[1];
+      if (k === 'tab' && TITLES[v]) { S.tab = v; any = true; }
+      else if (k === 'sheet') { S.sheet = v; any = true; }
+      else if (k === 'date' && v) {
+        var p = v.split('-').map(Number);
+        if (p.length === 3) { S.y = p[0]; S.m = p[1]; S.d = p[2]; S.calY = p[0]; S.calM = p[1]; any = true; }
+      } else if (k === 'birth' && v) {
+        var q = v.split('-').map(Number);
+        if (q.length >= 3) {
+          try {
+            S.bz = E.baziOf(q[0], q[1], q[2], q.length > 3 ? q[3] : null);
+            S.zodiac = S.bz.year.z;
+            any = true;
+          } catch (e) { }
+        }
       }
-    }
-    return false;
+    });
+    return any;
   }
   bootHash();
   window.addEventListener('hashchange', function () { bootHash(); render(); });
