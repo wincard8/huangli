@@ -1390,10 +1390,27 @@ body{
     });
   }
 
+  /* 大运／流年吉凶：喜忌 + 长生 + 冲刑命局（本程序自定口径） */
+  function yunScore(gan, zhi, bz, fav, unf) {
+    let s = 50;
+    const g = GAN_WX(gan), z = ZHI_WX[zhi];
+    if (fav && fav.indexOf(g) >= 0) s += 12; else if (unf && unf.indexOf(g) >= 0) s -= 12;
+    if (fav && fav.indexOf(z) >= 0) s += 10; else if (unf && unf.indexOf(z) >= 0) s -= 10;
+    const cs = changSheng(bz.dayMaster, zhi);
+    if (cs === '长生' || cs === '临官' || cs === '帝旺') s += 8;
+    else if (cs === '死' || cs === '墓' || cs === '绝') s -= 8;
+    const ps = [bz.year, bz.month, bz.day].concat(bz.hour ? [bz.hour] : []);
+    ps.forEach(p => {
+      if (zhi === (p.z + 6) % 12) s -= 6;
+      else if (XING_GROUP[zhi] >= 0 && XING_GROUP[zhi] === XING_GROUP[p.z] && zhi !== p.z) s -= 3;
+    });
+    return { score: Math.max(0, Math.min(100, Math.round(s))), stage: cs };
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
     baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG,
-    geJu, geJuStatus, liuQin, changSheng, CS_NAMES,
+    geJu, geJuStatus, liuQin, changSheng, CS_NAMES, yunScore,
     qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
@@ -3268,10 +3285,12 @@ window.XiejiQiongtong = {
         var age = S.y - gs.year;
         var cur = dy.list.filter(function (d2) { return age >= d2.from && age < d2.to; })[0] || dy.list[0];
         var ln = E.liuNian(S.y);
+        var curSc = E.yunScore(cur.gan, cur.zhi, S.bz, S.favNow || [], S.unfNow || []);
+        var lnSc = E.yunScore(ln.gan, ln.zhi, S.bz, S.favNow || [], S.unfNow || []);
         rows += '<div class="hr" style="margin:12px 0 8px"></div>' +
           '<div class="dress-txt">' + dy.startAge.toFixed(1) + ' 岁起运（' + (dy.forward ? '顺' : '逆') + '行）' +
-          '　当前大运 <b>' + esc(cur.text) + '</b>（' + cur.from + '–' + cur.to + ' 岁）' +
-          '　流年 <b>' + esc(ln.text) + '</b></div>' +
+          '　当前大运 <b>' + esc(cur.text) + '</b>（' + cur.from + '–' + cur.to + ' 岁 · ' + curSc.score + ' 分 · ' + esc(curSc.stage) + '）' +
+          '　流年 <b>' + esc(ln.text) + '</b>（' + lnSc.score + ' 分 · ' + esc(lnSc.stage) + '）</div>' +
           (function () {
             var d2 = E.dayRelations(cur.gan, cur.zhi, S.bz);
             var rel = d2.list.filter(function (x) { return x.type === '冲' || x.type === '刑' || x.type === '天克地冲'; });
@@ -3279,7 +3298,10 @@ window.XiejiQiongtong = {
               (rel.length ? '，冲刑命局：' + rel.map(function (x) { return x.text; }).join('、') : '，与命局无冲刑') +
               '；运干为你的「' + E.shiShen(S.bz.dayMaster, cur.gan) + '」</div>';
           })() +
-          '<div class="dress-txt mini">大运：' + dy.list.map(function (d2) { return esc(d2.text); }).join(' ') + '</div>';
+          '<div class="dress-txt mini">大运：' + dy.list.map(function (d2) {
+            var r2 = E.yunScore(d2.gan, d2.zhi, S.bz, S.favNow || [], S.unfNow || []);
+            return esc(d2.text) + r2.score;
+          }).join(' ') + '</div>';
       } catch (e) { }
     }
     return '<div class="bazi">' + grid + '</div>' + rows;
