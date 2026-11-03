@@ -2394,6 +2394,9 @@ window.XiejiQuotes = {
 
   function render() {
     var r = day();
+    S.wx = S.bz ? E.baziWuxing(S.bz) : null;
+    S.favNow = (S.favManual && S.favManual.length) ? S.favManual : (S.wx ? S.wx.fav : null);
+    S.unfNow = (S.unfManual && S.unfManual.length) ? S.unfManual : (S.wx ? S.wx.unf : null);
     var body = S.tab === 'detail' ? viewDetail(r)
       : S.tab === 'zeri' ? viewZeri()
         : S.tab === 'quotes' ? viewQuotes(r)
