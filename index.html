@@ -2117,6 +2117,16 @@ window.XiejiQuotes = {
       var p = kv[1].split('-').map(Number);
       if (p.length === 3) { S.y = p[0]; S.m = p[1]; S.d = p[2]; S.calY = p[0]; S.calM = p[1]; return true; }
     }
+    if (kv[0] === 'birth' && kv[1]) {
+      var q = kv[1].split('-').map(Number);
+      if (q.length >= 3) {
+        try {
+          S.bz = E.baziOf(q[0], q[1], q[2], q.length > 3 ? q[3] : null);
+          S.zodiac = S.bz.year.z;
+        } catch (e) { }
+        return true;
+      }
+    }
     return false;
   }
   bootHash();
