@@ -61,6 +61,11 @@ body{
 .mark.yi{background:var(--red)}
 .mark.ji{background:#4A4239}
 .mark.both{background:var(--gold)}
+
+.alert{margin-top:10px;background:rgba(179,32,42,.08);border-left:3px solid var(--red);
+  color:#8C1620;padding:9px 12px;border-radius:8px;font-size:12.5px;line-height:1.6}
+.dateinput{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
+  background:#fff;font-family:inherit;font-size:14px;color:var(--ink);margin-top:8px}
 .yiji-txt{font-size:14px;color:var(--ink);letter-spacing:.3px;line-height:1.7}
 .yiji-txt span{margin-right:8px;white-space:nowrap}
 
@@ -992,7 +997,7 @@ body{
   return {
     gregorianToJDN, jdnToGregorian, toLunar, computeDay,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
-    GAN, ZHI, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
+    GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
   };
 });
 
@@ -1002,7 +1007,15 @@ body{
 (function () {
   'use strict';
   var E = window.XiejiEngine;
-  var ZHI = E.ZHI, GAN = E.GAN;
+  var ZHI = E.ZHI, GAN = E.GAN, ANIMALS = E.ANIMALS;
+  function toast(msg) {
+    var d = document.createElement('div');
+    d.textContent = msg;
+    d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(40,32,26,.92);' +
+      'color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:9999;max-width:80vw;text-align:center';
+    document.body.appendChild(d);
+    setTimeout(function () { d.parentNode && d.parentNode.removeChild(d); }, 1600);
+  }
 
   /* ---------------- 词表 ---------------- */
   var MODERN = {
@@ -1058,8 +1071,19 @@ body{
   var S = {
     y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate(),
     tab: 'home', sheet: '', calY: now.getFullYear(), calM: now.getMonth() + 1,
-    tsTab: 'yi', thing: 0, days: 60, quoteOpen: -1
+    tsTab: 'yi', thing: 0, days: 60, quoteOpen: -1,
+    zodiac: null, zMode: 'range', zMonth: ''
   };
+  try {
+    var _z = localStorage.getItem('xieji.zodiac');
+    if (_z !== null && _z !== '') S.zodiac = +_z;
+    var _zm = localStorage.getItem('xieji.zmonth');
+    if (_zm) S.zMonth = _zm;
+  } catch (e) { /* 本地文件可能禁用 localStorage */ }
+  function saveZodiac(v) {
+    S.zodiac = v;
+    try { localStorage.setItem('xieji.zodiac', String(v)); } catch (e) { }
+  }
   var cache = {};
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -1105,19 +1129,19 @@ body{
     yi.forEach(function (x) { yiLabel[x.m] = 1; });
 
     var both = yi.filter(function (x) { return jiLabel[x.m]; });
+    var bothCount = both.length;
     var pol = r.policy;
 
     if (pol === 'yi') {
-      ji = ji.filter(function (x) { return !yiLabel[x.m]; });
-      both = [];
-    } else if (pol === 'both') {
-      yi = yi.filter(function (x) { return !jiLabel[x.m]; });
+      /* 上等：从宜不从忌，忌中剔除与宜相重者 */
       ji = ji.filter(function (x) { return !yiLabel[x.m]; });
     } else {
+      /* 上次「不遇」、中次「遇德」等"从宜亦从忌"者，以及从忌不从宜：
+         一律只列于忌，宜中不再重复 */
       yi = yi.filter(function (x) { return !jiLabel[x.m]; });
-      both = [];
     }
-    return { yi: yi, ji: ji, both: both };
+    both = [];
+    return { yi: yi, ji: ji, both: both, bothCount: bothCount };
   }
 
   function renderList(items) {
@@ -1283,7 +1307,7 @@ body{
     var note = [];
     var D = displayLists(r);
     if (r.policy === 'none') note.push('本日等第「' + r.gradeName + '」，' + r.heavy.join('、') + '当值，诸事不宜，只列"止不忌"之事。');
-    if (D.both.length) note.push('神煞交战：' + D.both.length + ' 项宜忌两见，依「从宜亦从忌」单列于下。');
+    if (D.bothCount) note.push('神煞交战：' + D.bothCount + ' 项宜忌两见，依「' + (r.policy === 'both' ? '从宜亦从忌' : '从宜不从忌') + '」只列于忌。');
     if (r.baiji.length) note.push(esc(r.dayGZText) + '日忌' + r.baiji.join('、') + '。');
 
     var grid = [
@@ -1300,6 +1324,11 @@ body{
         '<div class="gicon serif' + (i < 4 ? ' filled' : '') + '">' + g.ic + '</div><div>' + g.t + '</div></div>';
     }).join('');
 
+    var clash = (S.zodiac !== null && S.zodiac !== undefined && r.dayZhi === (S.zodiac + 6) % 12);
+    var alertHtml = clash
+      ? '<div class="alert">今日冲' + esc(ANIMALS[(r.dayZhi + 6) % 12]) + '（你的生肖），大事宜避；冲煞之日，只宜小事。</div>'
+      : '';
+
     return '<div class="wrap">' +
       '<div class="datebar"><span>' + S.y + '年' + S.m + '月' + S.d + '日</span>' +
       '<span class="pick" data-act="sheet:cal">选择日期<span class="caret"></span></span></div>' +
@@ -1311,11 +1340,10 @@ body{
       '<div class="gz-line">' + esc(r.yearGZText) + '年<span class="sep">·</span>' + esc(r.monthGZText) +
       '月<span class="sep">·</span>' + esc(r.dayGZText) + '日<span class="sep">·</span>星期' + esc(r.week) + '</div>' +
       '<div class="tags">' + tags.join('') + '</div></div>' +
-
+      alertHtml +
       '<div class="yiji">' +
       '<div class="yiji-row"><div class="mark yi">宜</div><div class="yiji-txt">' + renderList(D.yi) + '</div></div>' +
       '<div class="yiji-row"><div class="mark ji">忌</div><div class="yiji-txt">' + renderList(D.ji) + '</div></div>' +
-      (D.both.length ? '<div class="yiji-row"><div class="mark both">两</div><div class="yiji-txt">' + renderList(D.both) + '</div></div>' : '') +
       (note.length ? '<div class="xj-note">' + note.join('') + '</div>' : '') +
       '</div>' +
 
@@ -1406,8 +1434,7 @@ body{
       '<span class="tag">' + esc(r.term.name) + '</span><span class="tag">' + esc(r.nayin) + '</span></div></div>' +
 
       '<div class="yiji"><div class="yiji-row"><div class="mark yi">宜</div><div class="yiji-txt">' + renderList(D2.yi) + '</div></div>' +
-      '<div class="yiji-row"><div class="mark ji">忌</div><div class="yiji-txt">' + renderList(D2.ji) + '</div></div>' +
-      (D2.both.length ? '<div class="yiji-row"><div class="mark both">两</div><div class="yiji-txt">' + renderList(D2.both) + '</div></div>' : '') + '</div>' +
+      '<div class="yiji-row"><div class="mark ji">忌</div><div class="yiji-txt">' + renderList(D2.ji) + '</div></div></div>' +
 
       '<div class="card"><div class="card-hd"><div class="card-title">忌项分类</div><div class="card-more">按类分列</div></div>' +
       '<div class="card-body" style="padding-top:4px">' + (groups || '<div class="empty-tip">无忌</div>') + '</div></div>' +
@@ -1437,13 +1464,15 @@ body{
 
   function viewZeri() {
     var th = THINGS[S.thing];
-    var list = findGood(th, S.days);
+    var monthMode = S.zMode === 'month' && /^\d{4}-\d{2}$/.test(S.zMonth || '');
+    var list = monthMode ? findGoodMonth(th, S.zMonth) : findGood(th, S.days);
     var rows = list.length ? list.map(function (x) {
       return '<div class="day-row" data-act="goto:' + x.y + '-' + x.m + '-' + x.d + '">' +
         '<div class="day-d"><b>' + x.d + '</b><span>' + x.m + '月</span></div>' +
         '<div class="day-info"><b>' + x.week + ' · ' + x.gz + '日</b><p>' + x.lunar + ' · ' + x.jc + ' · ' + x.lv + '</p></div>' +
         '<div class="off">' + x.lv + '</div></div>';
-    }).join('') : '<div class="empty-tip">未来 ' + S.days + ' 天内没有适合「' + th.t + '」的日子，换个事项或放宽天数。</div>';
+    }).join('') : '<div class="empty-tip">' + (monthMode ? '这个月' : '未来 ' + S.days + ' 天内') +
+      '没有适合「' + th.t + '」的日子，换个事项、月份或放宽天数。</div>';
 
     var things = THINGS.map(function (x, i) {
       return '<div class="thing' + (i === S.thing ? ' on' : '') + '" data-act="thing:' + i + '">' + x.t + '</div>';
@@ -1455,13 +1484,36 @@ body{
       '<div class="thing-grid">' + things + '</div>' +
       '<div class="hr"></div>' +
       '<div class="thing-grid">' + [60, 180, 365].map(function (d) {
-        return '<div class="thing' + (S.days === d ? ' on' : '') + '" data-act="days:' + d + '">未来 ' + d + ' 天</div>';
-      }).join('') + '</div></div></div>' +
+        return '<div class="thing' + (!monthMode && S.days === d ? ' on' : '') + '" data-act="days:' + d + '">未来 ' + d + ' 天</div>';
+      }).join('') + '</div>' +
+      '<div class="hinge" style="margin-top:10px">或查某个月</div>' +
+      '<input type="month" id="zmonth" class="dateinput" value="' + (S.zMonth || '') + '"' +
+      (monthMode ? ' data-on="1"' : '') + '>' +
+      '</div></div>' +
       '<div class="card"><div class="card-hd"><div class="card-title">宜「' + th.t + '」的日子</div>' +
       '<div class="card-more">' + list.length + ' 天</div></div>' +
       '<div class="card-body" style="padding-top:2px">' + rows + '</div></div>' +
-      '<div class="note">筛选口径：该日"宜"中含此事项、且"忌"中不含；不做优先级排序。点一行跳到那天。</div>' +
+      '<div class="note">筛选口径：该日"宜"中含此事项、且"忌"中不含。点一行跳到那天。</div>' +
       '</div>';
+  }
+
+  function findGoodMonth(th, ym) {
+    var p = ym.split('-').map(Number), y = p[0], m = p[1];
+    var start = E.gregorianToJDN(y, m, 1);
+    var nm = (m === 12) ? [y + 1, 1] : [y, m + 1];
+    var end = E.gregorianToJDN(nm[0], nm[1], 1);
+    var out = [];
+    for (var j = start; j < end; j++) {
+      var g = E.jdnToGregorian(j), r;
+      try { r = E.computeDay(g.year, g.month, g.day); } catch (e) { continue; }
+      var hit = th.k.filter(function (k) { return r.yi.indexOf(k) >= 0 && r.ji.indexOf(k) < 0; });
+      if (!hit.length) continue;
+      out.push({
+        y: g.year, m: g.month, d: g.day, gz: r.dayGZText, jc: r.jianchuName, lv: r.levelText,
+        week: '星期' + r.week, lunar: lunarText(r), n: hit.length
+      });
+    }
+    return out;
   }
 
   function findGood(th, days) {
@@ -1513,6 +1565,15 @@ body{
       '<button class="btn ghost" data-act="icsh">导出时辰（未来 14 天 · 168 条）</button>' +
       '<div class="mini" style="margin-top:8px">iPhone：下载后用「文件」App 点开该 .ics → 选「日历」→ 添加全部。建议先新建一个「黄历」日历再导入，方便一键隐藏。</div>' +
       '</div></div>' +
+
+      '<div class="card"><div class="card-hd"><div class="card-title">我的生肖</div>' +
+      '<div class="card-more">用于冲煞提示</div></div><div class="card-body">' +
+      '<div class="dress-txt">填出生日期，按立春换年推生肖。当天日支冲你的生肖时，首页会出现红条提示。</div>' +
+      '<input type="date" id="bdate" class="dateinput" min="1900-01-01" max="2100-12-31">' +
+      '<button class="btn ghost" data-act="savebdate">保存</button>' +
+      '<div class="mini" style="margin-top:8px">当前：' +
+      (S.zodiac !== null && S.zodiac !== undefined ? '属' + ANIMALS[S.zodiac] + '（' + ZHI[S.zodiac] + '）' : '未设置') +
+      '</div></div></div>' +
 
       '<div class="card"><div class="card-hd"><div class="card-title">说明</div></div><div class="card-body">' +
       '<div class="dress-txt">黄历属传统民俗资料。《协纪辨方书》御制序自言"如曰如是则吉，如是则凶，如是则福，如是则祸，则明者所弗道也"；康熙谕旨亦称"事属渺茫难以凭信"。本程序只做规则复现，不主张吉凶实效，不构成医疗、投资、婚恋等任何建议。</div>' +
@@ -1654,6 +1715,23 @@ body{
     if (k === 'quote') { S.quoteOpen = +p[1]; S.sheet = 'quote'; render(); return; }
     if (k === 'ics') { downloadICS(); return; }
     if (k === 'icsh') { downloadHoursICS(); return; }
+    if (k === 'savebdate') {
+      var bd = document.getElementById('bdate');
+      if (!bd || !bd.value) { toast('请先选出生日期'); return; }
+      var pp = bd.value.split('-').map(Number);
+      try {
+        var rb = E.computeDay(pp[0], pp[1], pp[2]);
+        saveZodiac(rb.yearGZ % 12);
+        toast('已设为属' + ANIMALS[rb.yearGZ % 12] + '（' + ZHI[rb.yearGZ % 12] + '）');
+        render(); return;
+      } catch (e) { toast('该日期超出范围（1900–2100）'); return; }
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'zmonth' && e.target.value) {
+      S.zMonth = e.target.value; S.zMode = 'month'; render();
+    }
   });
 
   function bootHash() {
