@@ -1579,7 +1579,7 @@ body{
     return '<div class="wrap">' +
       '<div class="card" style="margin-top:12px"><div class="card-hd"><div class="card-title">我的生肖</div>' +
       '<div class="card-more">用于冲煞提示</div></div><div class="card-body">' +
-      '<div class="dress-txt">按<b>农历</b>填生日，程序按立春换年推生肖。当天日支冲你的生肖时，首页会出现红条提示。</div>' +
+      '<div class="dress-txt">按<b>农历</b>填生日，生肖按农历年（春节）定。当天日支冲你的生肖时，首页会出现红条提示。</div>' +
       '<button class="btn ghost" data-act="sheet:birth">选择生日（农历）</button>' +
       '<div class="mini" style="margin-top:8px">当前：' +
       (S.zodiac !== null && S.zodiac !== undefined ? '属' + ANIMALS[S.zodiac] + '（' + ZHI[S.zodiac] + '）' : '未设置') +
@@ -1635,7 +1635,7 @@ body{
         '<select class="bsel" id="bm">' + mOpts + '</select>' +
         '<select class="bsel" id="bd">' + dOpts + '</select>' +
         '</div>' +
-        '<div class="mini" style="margin-top:10px">按<b>农历</b>填生日（闰月另列）。程序按立春换年推生肖；当天日支冲你的生肖时，首页出现红条。</div>' +
+        '<div class="mini" style="margin-top:10px">按<b>农历</b>填生日（闰月另列）。生肖按农历年（春节）定，不按立春；当天日支冲你的生肖时，首页出现红条。</div>' +
         '<button class="btn" data-act="savebirth" style="margin-top:12px">保存生日</button>';
     }
     if (S.sheet === 'cal') {
@@ -1772,12 +1772,14 @@ body{
       var jdnB = E.lunarToJDN(S.bY, S.bM, S.bD, S.bLeap);
       if (jdnB === null) { toast('没找到这个农历日子'); return; }
       var gB = E.jdnToGregorian(jdnB);
+      /* 生肖按农历年（春节）定：1984 甲子，顺推 */
+      var zhiB = (((S.bY - 1984) % 12) + 12) % 12;
       try {
-        var rb = E.computeDay(gB.year, gB.month, gB.day);
-        saveZodiac(rb.yearGZ % 12);
+        E.computeDay(gB.year, gB.month, gB.day);
+        saveZodiac(zhiB);
         S.sheet = '';
         toast('农历' + S.bY + '年' + (S.bLeap ? '闰' : '') + lunarMonthName(S.bM) + lunarDayName(S.bD) +
-          ' → 属' + ANIMALS[rb.yearGZ % 12]);
+          '（' + gB.year + '-' + gB.month + '-' + gB.day + '）→ 属' + ANIMALS[zhiB]);
         render(); return;
       } catch (e) { toast('该日期超出范围（1900–2100）'); return; }
     }
