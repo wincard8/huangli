@@ -60,6 +60,7 @@ body{
   display:flex;align-items:center;justify-content:center;margin-top:1px;font-family:"Songti SC",serif}
 .mark.yi{background:var(--red)}
 .mark.ji{background:#4A4239}
+.mark.both{background:var(--gold)}
 .yiji-txt{font-size:14px;color:var(--ink);letter-spacing:.3px;line-height:1.7}
 .yiji-txt span{margin-right:8px;white-space:nowrap}
 
@@ -1093,6 +1094,38 @@ body{
     });
     return out;
   }
+
+  /* 依等第政策把「宜」「忌」「两见」拆开：政策落在"显示词"这一层，
+     避免 修宫室/缮城郭 同译作"修造"这类一词多源造成的假重合 */
+  function displayLists(r) {
+    var yi = modern(r.yi).sort(sortCommon);
+    var ji = modern(r.ji).sort(sortCommon);
+    var jiLabel = {}, yiLabel = {};
+    ji.forEach(function (x) { jiLabel[x.m] = 1; });
+    yi.forEach(function (x) { yiLabel[x.m] = 1; });
+
+    var both = yi.filter(function (x) { return jiLabel[x.m]; });
+    var pol = r.policy;
+
+    if (pol === 'yi') {
+      ji = ji.filter(function (x) { return !yiLabel[x.m]; });
+      both = [];
+    } else if (pol === 'both') {
+      yi = yi.filter(function (x) { return !jiLabel[x.m]; });
+      ji = ji.filter(function (x) { return !yiLabel[x.m]; });
+    } else {
+      yi = yi.filter(function (x) { return !jiLabel[x.m]; });
+      both = [];
+    }
+    return { yi: yi, ji: ji, both: both };
+  }
+
+  function renderList(items) {
+    if (!items.length) return '<span class="mini">—</span>';
+    return items.map(function (x) {
+      return '<span title="协纪原文：' + esc(x.t) + '">' + esc(x.m) + '</span>';
+    }).join('');
+  }
   var COMMON = ['嫁娶', '开市', '般移', '求医', '入学', '裁制', '安床', '祭祀', '祈福', '求嗣', '立券', '交易',
     '纳财', '解除', '扫舍', '沐浴', '行幸', '安葬', '破土', '兴造', '栽种', '纳畜', '入宅'];
   function sortCommon(a, b) {
@@ -1248,8 +1281,9 @@ body{
     var ts = r.hours[idx];
 
     var note = [];
-    if (r.suppress) note.push('本日为' + r.heavy.join('、') + '当值而无德神相解，只列"止不忌"之事。');
-    if (r.conflicts.length) note.push('宜忌两见者从忌：' + r.conflicts.slice(0, 4).join('、') + '。');
+    var D = displayLists(r);
+    if (r.policy === 'none') note.push('本日等第「' + r.gradeName + '」，' + r.heavy.join('、') + '当值，诸事不宜，只列"止不忌"之事。');
+    if (D.both.length) note.push('神煞交战：' + D.both.length + ' 项宜忌两见，依「从宜亦从忌」单列于下。');
     if (r.baiji.length) note.push(esc(r.dayGZText) + '日忌' + r.baiji.join('、') + '。');
 
     var grid = [
@@ -1279,8 +1313,9 @@ body{
       '<div class="tags">' + tags.join('') + '</div></div>' +
 
       '<div class="yiji">' +
-      '<div class="yiji-row"><div class="mark yi">宜</div><div class="yiji-txt">' + yiHtml(r) + '</div></div>' +
-      '<div class="yiji-row"><div class="mark ji">忌</div><div class="yiji-txt">' + jiHtml(r) + '</div></div>' +
+      '<div class="yiji-row"><div class="mark yi">宜</div><div class="yiji-txt">' + renderList(D.yi) + '</div></div>' +
+      '<div class="yiji-row"><div class="mark ji">忌</div><div class="yiji-txt">' + renderList(D.ji) + '</div></div>' +
+      (D.both.length ? '<div class="yiji-row"><div class="mark both">两</div><div class="yiji-txt">' + renderList(D.both) + '</div></div>' : '') +
       (note.length ? '<div class="xj-note">' + note.join('') + '</div>' : '') +
       '</div>' +
 
@@ -1340,6 +1375,7 @@ body{
   }
 
   function viewDetail(r) {
+    var D2 = displayLists(r);
     var groups = r.jiGroups.map(function (g) {
       return '<div class="ts-row"><div class="ts-gz" style="width:64px;font-size:12px">' + esc(g.name) + '</div>' +
         '<div class="ts-yi" style="white-space:normal">' + g.items.map(function (t) { return esc(MODERN[t] || t); }).join(' ') + '</div></div>';
@@ -1369,8 +1405,9 @@ body{
       '<div class="tags"><span class="tag">冲' + esc(r.chong.name) + ' 煞' + esc(r.chong.sha) + '</span>' +
       '<span class="tag">' + esc(r.term.name) + '</span><span class="tag">' + esc(r.nayin) + '</span></div></div>' +
 
-      '<div class="yiji"><div class="yiji-row"><div class="mark yi">宜</div><div class="yiji-txt">' + yiHtml(r) + '</div></div>' +
-      '<div class="yiji-row"><div class="mark ji">忌</div><div class="yiji-txt">' + jiHtml(r) + '</div></div></div>' +
+      '<div class="yiji"><div class="yiji-row"><div class="mark yi">宜</div><div class="yiji-txt">' + renderList(D2.yi) + '</div></div>' +
+      '<div class="yiji-row"><div class="mark ji">忌</div><div class="yiji-txt">' + renderList(D2.ji) + '</div></div>' +
+      (D2.both.length ? '<div class="yiji-row"><div class="mark both">两</div><div class="yiji-txt">' + renderList(D2.both) + '</div></div>' : '') + '</div>' +
 
       '<div class="card"><div class="card-hd"><div class="card-title">忌项分类</div><div class="card-more">按类分列</div></div>' +
       '<div class="card-body" style="padding-top:4px">' + (groups || '<div class="empty-tip">无忌</div>') + '</div></div>' +
@@ -1461,7 +1498,7 @@ body{
       '<div class="dress-txt">历法：北京时间，定朔定气，无中气置闰；年柱以立春、月柱以节为界。节气精度约 ±15 分钟，交节近子夜时可能差一日。</div>' +
       '<div class="dress-txt">可靠区间 1900–2100。全部实时推算，没有预生成表；1929 年前中国用平朔与北京地方时，个别农历日可能与旧历书差一天。</div>' +
       '<div class="hr"></div>' +
-      '<div class="mini">等第：依卷十「月表」六等（上·上次·中·中次·下·下下）判日，遇德则依判词进退；月破固定最下。未实现：天愿月恩四相时德等吉神、年表月表方位、个人本命；财神福神喜神方位各家口诀不一，不列。</div>' +
+      '<div class="mini">等第：依卷十「月表」六等（上·上次·中·中次·下·下下）判日，遇德则依判词进退；月破固定最下。判词为「从宜亦从忌」者，只把真正两见的条目单列一栏，不再在宜忌两处重复。未实现：天愿月恩四相时德等吉神、年表月表方位、个人本命；财神福神喜神方位各家口诀不一，不列。</div>' +
       '</div></div>' +
 
       '<div class="card"><div class="card-hd"><div class="card-title">历法自检</div><div class="card-more">对照香港天文台</div></div>' +
