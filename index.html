@@ -1407,10 +1407,38 @@ body{
     return { score: Math.max(0, Math.min(100, Math.round(s))), stage: cs };
   }
 
+  /* 取用神（相神）：据《渊海子平·看命口诀》「逢官看财，逢煞看印，逢印看官」一路 */
+  function yongShen(gj) {
+    const R = {
+      '正官格': { shi: '正财', by: '逢官看财' },
+      '偏官格': { shi: '正印', by: '逢煞看印' },
+      '印绶格': { shi: '正官', by: '逢印看官' },
+      '枭神格': { shi: '正官', by: '逢印看官' },
+      '正财格': { shi: '食神', by: '财喜食生' },
+      '偏财格': { shi: '食神', by: '财喜食生' },
+      '食神格': { shi: '正财', by: '食神生财' },
+      '伤官格': { shi: '正财', by: '伤官生财' },
+      '建禄格': { shi: '正财', by: '禄喜财官' },
+      '月刃格': { shi: '七杀', by: '刃喜杀制' }
+    };
+    const r = R[gj.name];
+    return r ? { shi: r.shi, by: r.by, name: gj.name } : null;
+  }
+
+  /* 流月：按节气月取 12 个干支（取每月 15 日为样本日，月柱已按节分） */
+  function liuYue(year) {
+    const out = [];
+    for (let m = 1; m <= 12; m++) {
+      const r = computeDay(year, m, 15);
+      out.push({ month: m, gan: r.monthGZ.stem, zhi: r.monthGZ.branch, text: GAN[r.monthGZ.stem] + ZHI[r.monthGZ.branch] });
+    }
+    return out;
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
     baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG,
-    geJu, geJuStatus, liuQin, changSheng, CS_NAMES, yunScore,
+    geJu, geJuStatus, liuQin, changSheng, CS_NAMES, yunScore, yongShen, liuYue,
     qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
@@ -3244,6 +3272,12 @@ window.XiejiQiongtong = {
         return esc(x.role) + '·' + esc(x.shi) + '（' + esc(x.status) + (x.stage ? '·' + esc(x.stage) : '') + '）';
       }).join('　') + '</div>';
       rows += '<div class="dress-txt">日主坐' + esc(ZHI[b.day.z]) + '（' + esc(E.changSheng(b.dayMaster, b.day.z)) + '）</div>';
+      (function () {
+        var _y = E.yongShen(_gj);
+        if (!_y) return;
+        rows += '<div class="dress-txt">用神：<b>' + esc(_y.shi) + '</b>　<span class="mini">' +
+          esc(_y.by) + '（相神说，仅供参照，未改算法）</span></div>';
+      })();
       rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五；旺衰取卷二「要以中和為貴」；取格据《渊海子平》「月支取格，乃分贵贱」；成败据《看命口诀》「逢官看财，逢煞看印，逢印看官」；六亲据论父/论母/论妻妾/论子息。</div>';
       rows += '<div class="dress-txt">五行：' + E.WX_NAME.map(function (n, i) {
         return n + wx.counts[i];
@@ -3301,6 +3335,10 @@ window.XiejiQiongtong = {
           '<div class="dress-txt mini">大运：' + dy.list.map(function (d2) {
             var r2 = E.yunScore(d2.gan, d2.zhi, S.bz, S.favNow || [], S.unfNow || []);
             return esc(d2.text) + r2.score;
+          }).join(' ') + '</div>' +
+          '<div class="dress-txt mini">' + S.y + ' 流月：' + E.liuYue(S.y).map(function (m2) {
+            var r3 = E.yunScore(m2.gan, m2.zhi, S.bz, S.favNow || [], S.unfNow || []);
+            return m2.month + '月' + esc(m2.text) + r3.score;
           }).join(' ') + '</div>';
       } catch (e) { }
     }
