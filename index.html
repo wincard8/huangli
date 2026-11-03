@@ -1343,23 +1343,32 @@ body{
     return { verdict: verdict, reasons: reasons, name: name };
   }
 
+  /* 十二长生：阳干顺行、阴干逆行
+     长生起点：甲亥 乙午 丙寅 丁酉 戊寅 己酉 庚巳 辛子 壬申 癸卯 */
+  const CS_NAMES = ['长生', '沐浴', '冠带', '临官', '帝旺', '衰', '病', '死', '墓', '绝', '胎', '养'];
+  const CS_START = [11, 6, 2, 9, 2, 9, 5, 0, 8, 3];
+  function changSheng(gan, zhi) {
+    const start = CS_START[gan];
+    const idx = (gan % 2 === 0) ? ((zhi - start + 12) % 12) : ((start - zhi + 12) % 12);
+    return CS_NAMES[idx];
+  }
+
   /* 六亲：据《渊海子平》论父/论母/论妻妾/论子息
      父=偏财　母=正印　兄弟=比肩劫财　男命妻=正财、子=七杀、女=正官；女命夫=正官、子=伤官、女=食神 */
   function liuQin(bz, male) {
     const me = bz.dayMaster;
     const ps = [bz.year, bz.month, bz.day].concat(bz.hour ? [bz.hour] : []);
-    const ganShi = {};   // 透干
-    const cangShi = {};  // 藏干
-    ps.forEach(p => {
+    const labels = ['年', '月', '日', '时'];
+    /* 记录每个十神第一次出现的位置：{ pos, gan, zhi } */
+    const where = {};
+    ps.forEach((p, i) => {
       const s = shiShen(me, p.g);
-      ganShi[s] = (ganShi[s] || 0) + 1;
-      ZHI_CANG[p.z].forEach(g => { const t = shiShen(me, g); cangShi[t] = (cangShi[t] || 0) + 1; });
+      if (i !== 2 && !where[s]) where[s] = { pos: labels[i] + '干', gan: p.g, zhi: p.z, tou: true };
+      ZHI_CANG[p.z].forEach(g => {
+        const t = shiShen(me, g);
+        if (!where[t]) where[t] = { pos: labels[i] + '支藏' + GAN[g], gan: g, zhi: p.z, tou: false };
+      });
     });
-    const statusOf = list => {
-      if (list.some(s => ganShi[s])) return '透干';
-      if (list.some(s => cangShi[s])) return '藏干';
-      return '无';
-    };
     const rows = [
       { role: '父', shi: ['偏财'] },
       { role: '母', shi: ['正印'] },
@@ -1368,13 +1377,23 @@ body{
       male ? { role: '子', shi: ['七杀'] } : { role: '子', shi: ['伤官'] },
       male ? { role: '女', shi: ['正官'] } : { role: '女', shi: ['食神'] }
     ];
-    return rows.map(r => ({ role: r.role, shi: r.shi.join('/'), status: statusOf(r.shi) }));
+    return rows.map(r => {
+      let hit = null;
+      for (const s of r.shi) if (where[s]) { hit = where[s]; break; }
+      return {
+        role: r.role,
+        shi: r.shi.join('/'),
+        status: hit ? (hit.tou ? '透干' : '藏干') : '无',
+        stage: hit ? changSheng(hit.gan, hit.zhi) : '',
+        pos: hit ? hit.pos : ''
+      };
+    });
   }
 
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
     baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG,
-    geJu, geJuStatus, liuQin,
+    geJu, geJuStatus, liuQin, changSheng, CS_NAMES,
     qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
@@ -1596,6 +1615,12 @@ window.XiejiMingli = {
    "name": "六亲·子息",
    "juan": "论子息",
    "text": "论子息七杀者，子也。如甲见庚申是子，辛酉是女。若见丙火午寅，或杀临羊刃杀宫，主克子，不然疾病不肖。遇戊己得令，则子得力和顺。见丙巳字，女不正。若临沐浴桃花，更兼暗合食神多者，其女私通。若杀临长生、月德、天德所临之地，贵人禄马，食神财乡，言有强父贵子，要禀中和。阳日阳时男见重，阳日阴时先男後女，阴日阴时女见重，阴日阳时先女後男。伤官见官，子孙凶顽。时上伤官及空亡，难为子息。女命取"
+  },
+  {
+   "src": "渊海子平",
+   "name": "十二长生",
+   "juan": "论天干生旺死绝",
+   "text": "渊海子平卷一论天干生旺死绝长生沐浴冠带临官帝旺衰病死墓绝胎养甲亥子丑寅卯辰巳午未申酉戌乙午巳辰卯寅丑子亥戌酉申未丙寅卯辰巳午未申酉戌亥子丑丁酉申未午巳辰卯寅丑子亥戌戊寅卯辰巳午未申酉戌亥子丑己酉申未午巳辰卯寅丑子亥戌庚巳午未申酉戌亥子丑寅卯辰辛子亥戌酉申未午巳辰卯寅丑壬申酉戌亥子丑寅卯辰巳午未癸卯寅丑子亥戌酉申未午巳辰眉批：长生者，言物在於发生而出，如人受父母精血延怀十月而生也。沐浴者，乃生之初，"
   }
  ]
 };
@@ -3199,8 +3224,9 @@ window.XiejiQiongtong = {
         esc(_st.verdict) + '格</b>' +
         (_st.reasons.length ? '　<span class="mini">' + esc(_st.reasons.join('；')) + '</span>' : '') + '</div>';
       rows += '<div class="dress-txt">六亲：' + E.liuQin(b, S.bMale).map(function (x) {
-        return esc(x.role) + '·' + esc(x.shi) + '（' + esc(x.status) + '）';
+        return esc(x.role) + '·' + esc(x.shi) + '（' + esc(x.status) + (x.stage ? '·' + esc(x.stage) : '') + '）';
       }).join('　') + '</div>';
+      rows += '<div class="dress-txt">日主坐' + esc(ZHI[b.day.z]) + '（' + esc(E.changSheng(b.dayMaster, b.day.z)) + '）</div>';
       rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五；旺衰取卷二「要以中和為貴」；取格据《渊海子平》「月支取格，乃分贵贱」；成败据《看命口诀》「逢官看财，逢煞看印，逢印看官」；六亲据论父/论母/论妻妾/论子息。</div>';
       rows += '<div class="dress-txt">五行：' + E.WX_NAME.map(function (n, i) {
         return n + wx.counts[i];
