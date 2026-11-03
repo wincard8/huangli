@@ -1706,22 +1706,6 @@ window.XiejiQuotes = {
         '<div class="gicon serif' + (i < 4 ? ' filled' : '') + '">' + g.ic + '</div><div>' + g.t + '</div></div>';
     }).join('');
 
-    var rel = null;
-    S.wx = S.bz ? E.baziWuxing(S.bz) : null;
-    S.favNow = (S.favManual && S.favManual.length) ? S.favManual : (S.wx ? S.wx.fav : null);
-    S.unfNow = (S.unfManual && S.unfManual.length) ? S.unfManual : (S.wx ? S.wx.unf : null);
-    if (S.bz) { try { rel = E.dayRelations(r.dayGZ, r.dayZhi, S.bz); } catch (e) { rel = null; } }
-    var score = null;
-    if (S.favNow) {
-      score = E.scoreOf(r.dayGZ, r.dayZhi, S.favNow, S.unfNow || []);
-      if (rel) rel.list.forEach(function (x) {
-        if (x.type === '天克地冲') score -= 30;
-        else if (x.type === '冲' && x.pillar === '日') score -= 25;
-        else if (x.type === '冲') score -= 12;
-        else if (x.type === '刑' || x.type === '自刑') score -= 8;
-      });
-      score = Math.max(0, Math.min(100, score));
-    }
     var harsh = rel ? rel.list.filter(function (x) {
       return x.type === '冲' || x.type === '天克地冲' || x.type === '刑' || x.type === '自刑';
     }) : [];
