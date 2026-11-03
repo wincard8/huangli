@@ -1174,9 +1174,50 @@ body{
     return Math.max(0, Math.min(100, Math.round(s)));
   }
 
+  /* ---------------- 大运与流年 ---------------- */
+  /* 阳年男／阴年女 顺行，其余逆行；出生到最近"节"的天数折合起运（三日一岁） */
+  function qiYun(y, m, d, male) {
+    const r0 = computeDay(y, m, d);
+    const j0 = gregorianToJDN(y, m, d);
+    const yangYear = (r0.yearGZ % 10) % 2 === 0;
+    const forward = (yangYear && male) || (!yangYear && !male);
+    let days = 15;
+    for (let k = 1; k <= 40; k++) {
+      const jj = forward ? j0 + k : j0 - k;
+      const g = jdnToGregorian(jj);
+      const r = computeDay(g.year, g.month, g.day);
+      if (r.monthGZ.index !== r0.monthGZ.index) { days = k; break; }
+    }
+    return { forward: forward, days: days, startAge: days / 3 };
+  }
+
+  function daYun(y, m, d, male, count) {
+    const q = qiYun(y, m, d, male);
+    const r0 = computeDay(y, m, d);
+    const out = [];
+    const n = count || 8;
+    for (let i = 1; i <= n; i++) {
+      const idx = ((r0.monthGZ.index + (q.forward ? i : -i)) % 60 + 60) % 60;
+      const ageStart = q.startAge + (i - 1) * 10;
+      out.push({
+        idx: idx,
+        text: GAN[idx % 10] + ZHI[idx % 12],
+        gan: idx % 10, zhi: idx % 12,
+        from: Math.floor(ageStart), to: Math.floor(ageStart) + 10
+      });
+    }
+    return { forward: q.forward, startAge: q.startAge, list: out };
+  }
+
+  function liuNian(year) {
+    const r = computeDay(year, 6, 1);
+    return { idx: r.yearGZ, text: r.yearGZText, gan: r.yearGZ % 10, zhi: r.yearGZ % 12 };
+  }
+
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
     baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX,
+    qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
   };
@@ -1359,6 +1400,7 @@ window.XiejiQuotes = {
     tsTab: 'yi', thing: 0, days: 60, quoteOpen: -1,
     zodiac: null, zMode: 'range', zMonth: '',
     bY: 1990, bM: 1, bD: 1, bLeap: false, bHz: null, qName: '', bz: null,
+    bMale: true, quiz: null,
     favManual: null, unfManual: null, wx: null, favNow: null, unfNow: null
   };
   try {
@@ -1371,7 +1413,9 @@ window.XiejiQuotes = {
       var _o = JSON.parse(_b);
       if (_o && _o.bY) {
         S.bY = _o.bY; S.bM = _o.bM; S.bD = _o.bD; S.bLeap = !!_o.bLeap;
-        S.bHz = (_o.bHz === null || _o.bHz === undefined) ? null : +_o.bHz;
+      if (S.bHz === null || S.bHz === undefined) { S.bHz = null; }
+      else S.bHz = +_o.bHz;
+      S.bMale = (_o.male === undefined) ? true : !!_o.male;
       }
     }
     var _f = localStorage.getItem('xieji.favor');
@@ -1387,9 +1431,13 @@ window.XiejiQuotes = {
   function saveBirth() {
     try {
       localStorage.setItem('xieji.birth', JSON.stringify({
-        bY: S.bY, bM: S.bM, bD: S.bD, bLeap: S.bLeap, bHz: S.bHz
+        bY: S.bY, bM: S.bM, bD: S.bD, bLeap: S.bLeap, bHz: S.bHz, male: S.bMale
       }));
     } catch (e) { }
+  }
+  function birthSolar() {
+    var j = E.lunarToJDN(S.bY, S.bM, S.bD, S.bLeap);
+    return j === null ? null : E.jdnToGregorian(j);
   }
   function bzNow() {
     var j = E.lunarToJDN(S.bY, S.bM, S.bD, S.bLeap);
@@ -1547,6 +1595,55 @@ window.XiejiQuotes = {
     x.fillText('wincard8.github.io/huangli', W / 2, 936);
 
     return c.toDataURL('image/png');
+  }
+
+  /* 事项对应的"得力十神"，用于场景加权（本程序自定口径） */
+  var THING_SHISHEN = {
+    '结婚': ['正财', '正官', '食神'], '搬家': ['正印', '偏印'], '开业': ['正财', '偏财'],
+    '动土': ['偏财', '食神'], '修造': ['正财', '食神'], '安葬': ['正印', '偏印'],
+    '破土': ['偏财'], '出行': ['食神', '正官'], '赴任': ['正官', '正印'],
+    '求医': ['正印', '偏印'], '入学': ['正印', '偏印'], '祭祀': ['正印'],
+    '签约': ['正财', '正官'], '纳财': ['正财', '偏财'], '栽种': ['食神'], '买畜': ['正财']
+  };
+  /* 十干禄 */
+  var LU = [2, 3, 5, 6, 5, 6, 8, 9, 11, 0];
+
+  function thingScore(r, th) {
+    if (!S.bz || !S.favNow) return null;
+    var rel = null;
+    try { rel = E.dayRelations(r.dayGZ, r.dayZhi, S.bz); } catch (e) { return null; }
+    var sc = E.scoreOf(r.dayGZ, r.dayZhi, S.favNow, S.unfNow || []);
+    rel.list.forEach(function (x) {
+      if (x.type === '天克地冲') sc -= 30;
+      else if (x.type === '冲' && x.pillar === '日') sc -= 25;
+      else if (x.type === '冲') sc -= 12;
+      else if (x.type === '刑' || x.type === '自刑') sc -= 8;
+    });
+    var want = THING_SHISHEN[th.t] || [];
+    if (want.indexOf(rel.shiShen) >= 0) sc += 8;
+    if (r.dayZhi === LU[S.bz.dayMaster]) sc += 6;
+    return Math.max(0, Math.min(100, Math.round(sc)));
+  }
+
+  /* ---------------- 五行体质测试（趣味口径） ---------------- */
+  var QUIZ = [
+    { q: '你更怕冷还是怕热？', a: [['怕冷', 1, 2], ['怕热', 4, 2], ['都不明显', 2, 1]] },
+    { q: '做事节奏更接近？', a: [['急躁，说干就干', 1, 2], ['慢条斯理', 4, 2], ['不急不缓', 2, 1]] },
+    { q: '情绪上更容易？', a: [['易怒、上头', 0, 2], ['易焦虑、多思', 3, 2], ['情绪平稳', 2, 1]] },
+    { q: '体型偏哪一类？', a: [['偏瘦偏高', 0, 2], ['偏壮结实', 3, 2], ['圆润易胖', 4, 2]] },
+    { q: '睡眠状况？', a: [['入睡难、易醒', 1, 2], ['睡得沉、起不来', 4, 2], ['一般', 3, 1]] },
+    { q: '口味偏好？', a: [['嗜辣', 1, 2], ['嗜酸', 0, 2], ['嗜甜', 2, 2], ['嗜咸', 4, 2], ['清淡', 3, 1]] }
+  ];
+
+  function quizResult() {
+    var sc = [0, 0, 0, 0, 0];
+    (S.quiz || []).forEach(function (ai, qi) {
+      if (ai === null || ai === undefined) return;
+      var a = QUIZ[qi] && QUIZ[qi].a[ai];
+      if (a) sc[a[1]] += a[2];
+    });
+    var order = [0, 1, 2, 3, 4].sort(function (x, y) { return sc[y] - sc[x]; });
+    return { sc: sc, fav: order.slice(0, 2), unf: order.slice(3) };
   }
 
   function modern(list) {
@@ -1755,6 +1852,21 @@ window.XiejiQuotes = {
         '，落你的' + rel.kongHit.join('、') + '柱。</div>';
     }
     rows += '<button class="btn ghost" data-act="poster" style="margin-top:10px">生成对比海报</button>';
+    /* 大运与流年 */
+    var gs = birthSolar();
+    if (gs) {
+      try {
+        var dy = E.daYun(gs.year, gs.month, gs.day, S.bMale, 8);
+        var age = S.y - gs.year;
+        var cur = dy.list.filter(function (d2) { return age >= d2.from && age < d2.to; })[0] || dy.list[0];
+        var ln = E.liuNian(S.y);
+        rows += '<div class="hr" style="margin:12px 0 8px"></div>' +
+          '<div class="dress-txt">' + dy.startAge.toFixed(1) + ' 岁起运（' + (dy.forward ? '顺' : '逆') + '行）' +
+          '　当前大运 <b>' + esc(cur.text) + '</b>（' + cur.from + '–' + cur.to + ' 岁）' +
+          '　流年 <b>' + esc(ln.text) + '</b></div>' +
+          '<div class="dress-txt mini">大运：' + dy.list.map(function (d2) { return esc(d2.text); }).join(' ') + '</div>';
+      } catch (e) { }
+    }
     return '<div class="bazi">' + grid + '</div>' + rows;
   }
 
@@ -2000,7 +2112,7 @@ window.XiejiQuotes = {
       return '<div class="day-row" data-act="goto:' + x.y + '-' + x.m + '-' + x.d + '">' +
         '<div class="day-d"><b>' + x.d + '</b><span>' + x.m + '月</span></div>' +
         '<div class="day-info"><b>' + x.week + ' · ' + x.gz + '日</b><p>' + x.lunar + ' · ' + x.jc + ' · ' + x.lv + '</p></div>' +
-        '<div class="off">' + x.lv + '</div></div>';
+        '<div class="off">' + (x.sc != null ? x.sc + ' 分' : x.lv) + '</div></div>';
     }).join('') : '<div class="empty-tip">' + (monthMode ? '这个月' : '未来 ' + S.days + ' 天内') +
       '没有适合「' + th.t + '」的日子，换个事项、月份或放宽天数。</div>';
 
@@ -2040,10 +2152,13 @@ window.XiejiQuotes = {
       if (!hit.length) continue;
       out.push({
         y: g.year, m: g.month, d: g.day, gz: r.dayGZText, jc: r.jianchuName, lv: r.levelText,
-        week: '星期' + r.week, lunar: lunarText(r), n: hit.length
+        week: '星期' + r.week, lunar: lunarText(r), n: hit.length, sc: thingScore(r, th)
       });
     }
-    return out;
+    return out.sort(function (a, b) {
+      if (a.sc != null && b.sc != null && a.sc !== b.sc) return b.sc - a.sc;
+      return 0;
+    });
   }
 
   function findGood(th, days) {
@@ -2056,10 +2171,13 @@ window.XiejiQuotes = {
       if (!hit.length) continue;
       out.push({
         y: g.year, m: g.month, d: g.day, gz: r.dayGZText, jc: r.jianchuName, lv: r.levelText,
-        week: '星期' + r.week, lunar: lunarText(r), n: hit.length
+        week: '星期' + r.week, lunar: lunarText(r), n: hit.length, sc: thingScore(r, th)
       });
     }
-    return out;
+    return out.sort(function (a, b) {
+      if (a.sc != null && b.sc != null && a.sc !== b.sc) return b.sc - a.sc;
+      return 0;
+    });
   }
 
   function viewMine() {
@@ -2077,6 +2195,7 @@ window.XiejiQuotes = {
       '<div class="card-more">用于冲煞提示</div></div><div class="card-body">' +
       '<div class="dress-txt">按<b>农历</b>填生日与时辰，推四柱八字；日支冲、刑你的命局时，首页出现红条。生肖按农历年（春节）定。</div>' +
       '<button class="btn ghost" data-act="sheet:birth">填写生日与时辰</button>' +
+      '<button class="btn ghost" data-act="sheet:quiz" style="margin-top:8px">不想填生辰？做个体质测试</button>' +
       '<div class="mini" style="margin-top:8px">当前：' +
       (S.zodiac !== null && S.zodiac !== undefined ? '属' + ANIMALS[S.zodiac] + '（' + ZHI[S.zodiac] + '）' : '未设置') +
       (S.bz ? '　四柱 ' + esc(S.bz.yearText) + ' ' + esc(S.bz.monthText) + ' ' + esc(S.bz.dayText) + (S.bz.hourText ? ' ' + esc(S.bz.hourText) : '') : '') +
@@ -2114,6 +2233,27 @@ window.XiejiQuotes = {
 
   /* ---------------- 弹层 ---------------- */
   function sheetHtml(r) {
+    if (S.sheet === 'quiz') {
+      var qs = QUIZ.map(function (item, qi) {
+        var opts = item.a.map(function (a, ai) {
+          var on = S.quiz && S.quiz[qi] === ai;
+          return '<span class="fchip' + (on ? ' on' : '') + '" style="flex:0 0 auto;padding:8px 12px" data-act="quizsel:' + qi + ':' + ai + '">' + a[0] + '</span>';
+        }).join('');
+        return '<div style="margin-top:14px"><div class="dress-txt"><b>' + (qi + 1) + '.</b> ' + item.q + '</div>' +
+          '<div class="frow" style="flex-wrap:wrap">' + opts + '</div></div>';
+      }).join('');
+      var answered = (S.quiz || []).filter(function (x) { return x !== null && x !== undefined; }).length;
+      var res = answered === QUIZ.length ? quizResult() : null;
+      var out = res
+        ? '<div style="margin:14px 0 0;border:1px solid var(--line);border-radius:10px;padding:12px">' +
+        '<div class="dress-txt">你的能量偏「<b>' + res.fav.map(function (w) { return E.WX_NAME[w]; }).join('、') +
+        '</b>」，建议补「' + res.unf.map(function (w) { return E.WX_NAME[w]; }).join('、') + '」以平衡。</div>' +
+        '<div class="mini" style="margin-top:6px">趣味测试，不是命理判断；点下面按钮才写入喜忌。</div>' +
+        '<button class="btn" data-act="quizapply" style="margin-top:10px">采用这个结果</button></div>'
+        : '<div class="mini" style="margin-top:14px">已答 ' + answered + '/' + QUIZ.length + ' 题</div>';
+      return '<div class="sheet-hd"><span>五行体质测试</span><span class="chip" data-act="closesheet">关闭</span></div>' +
+        '<div class="mini">不想填生辰？用几道题估一个喜忌，作为初始值。</div>' + qs + out;
+    }
     if (S.sheet === 'poster') {
       if (!S.poster) {
         try { S.poster = makePoster(r, S.scoreS, S.relNow); } catch (e) { S.poster = ''; }
@@ -2183,6 +2323,10 @@ window.XiejiQuotes = {
         '</div>' +
         '<div class="birth-row" style="margin-top:8px">' +
         '<select class="bsel" id="bh" style="flex:1">' + hOpts + '</select>' +
+        '<select class="bsel" id="bg" style="flex:1">' +
+        '<option value="1"' + (S.bMale ? ' selected' : '') + '>男</option>' +
+        '<option value="0"' + (S.bMale ? '' : ' selected') + '>女</option>' +
+        '</select>' +
         '</div>' +
         '<div class="mini" style="margin-top:10px">按<b>农历</b>填生日（闰月另列）。时辰填出生时辰；不确定可留空，四柱只缺时柱。生肖按农历年（春节）定。</div>' +
         '<button class="btn" data-act="savebirth" style="margin-top:12px">保存生日</button>';
@@ -2317,6 +2461,19 @@ window.XiejiQuotes = {
     if (k === 'quote') { S.quoteOpen = +p[1]; S.sheet = 'quote'; render(); return; }
     if (k === 'ics') { downloadICS(); return; }
     if (k === 'icsh') { downloadHoursICS(); return; }
+    if (k === 'quizsel') {
+      if (!S.quiz) S.quiz = [];
+      S.quiz[+p[1]] = +p[2];
+      render(); return;
+    }
+    if (k === 'quizapply') {
+      var qr = quizResult();
+      S.favManual = qr.fav; S.unfManual = qr.unf;
+      try { localStorage.setItem('xieji.favor', JSON.stringify({ fav: S.favManual, unf: S.unfManual })); } catch (e) { }
+      S.sheet = '';
+      toast('已按测试结果设定喜忌');
+      render(); return;
+    }
     if (k === 'poster') {
       try {
         S.poster = makePoster(day(), S.scoreS, S.relNow);
@@ -2388,6 +2545,7 @@ window.XiejiQuotes = {
     }
     if (id === 'bd') { S.bD = +e.target.value; return; }
     if (id === 'bh') { S.bHz = e.target.value === '' ? null : +e.target.value; return; }
+    if (id === 'bg') { S.bMale = e.target.value === '1'; saveBirth(); render(); return; }
   });
 
   function bootHash() {
