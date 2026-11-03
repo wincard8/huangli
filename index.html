@@ -1130,25 +1130,64 @@ body{
   const WX_NAME = ['木', '火', '土', '金', '水'];
   const ZHI_WX = [4, 2, 0, 0, 2, 1, 1, 2, 3, 3, 2, 4]; // 子水 丑土 寅木 卯木 辰土 巳火 午火 未土 申金 酉金 戌土 亥水
 
+  /* 地支藏干（据《渊海子平·地支藏遁歌》，主气在前） */
+  const ZHI_CANG = [
+    [9],            // 子 癸
+    [5, 7, 9],      // 丑 己 辛 癸
+    [0, 2, 4],      // 寅 甲 丙 戊
+    [1],            // 卯 乙
+    [4, 1, 9],      // 辰 戊 乙 癸
+    [2, 4, 6],      // 巳 丙 戊 庚
+    [3, 5],         // 午 丁 己
+    [5, 1, 3],      // 未 己 乙 丁
+    [6, 8, 4],      // 申 庚 壬 戊
+    [7],            // 酉 辛
+    [4, 7, 3],      // 戌 戊 辛 丁
+    [8, 0]          // 亥 壬 甲
+  ];
+  const CANG_W = w => w === 1 ? [1] : (w === 2 ? [0.7, 0.3] : [0.6, 0.25, 0.15]);
+
   function baziWuxing(bz) {
     const ps = [bz.year, bz.month, bz.day].concat(bz.hour ? [bz.hour] : []);
-    const gw = ps.map(p => GAN_WX(p.g));
-    const zw = ps.map(p => ZHI_WX[p.z]);
-    const cnt = [0, 0, 0, 0, 0];
-    gw.forEach(w => cnt[w]++); zw.forEach(w => cnt[w]++);
     const me = GAN_WX(bz.dayMaster);
     const shengMe = (me + 4) % 5, keMe = (me + 3) % 5, woKe = (me + 2) % 5, woSheng = (me + 1) % 5;
 
-    let support = 0, total = 0;
+    const force = [0, 0, 0, 0, 0];
+    const raw = [0, 0, 0, 0, 0];
     ps.forEach((p, i) => {
-      total += 2;
-      if (gw[i] === me || gw[i] === shengMe) support++;
-      if (zw[i] === me || zw[i] === shengMe) support++;
+      const gw = GAN_WX(p.g);
+      force[gw] += 1; raw[gw] += 1;
+      const cang = ZHI_CANG[p.z], w = CANG_W(cang.length);
+      const mul = (i === 1) ? 1.5 : 1;            // 月令加权
+      cang.forEach((g, k) => {
+        const ww = w[k] * mul;
+        force[GAN_WX(g)] += ww;
+        raw[GAN_WX(g)] += CANG_W(cang.length)[k];
+      });
     });
-    const monthSupport = (zw[1] === me || zw[1] === shengMe);
-    support += monthSupport ? 1.2 : -0.8;
 
-    const strong = support >= total / 2;
+    const total = force.reduce((a, b) => a + b, 0);
+    const support = force[me] + force[shengMe];
+    const ratio = support / total;
+
+    /* 得令：月支主气与日主同类或生我 */
+    const yueMain = GAN_WX(ZHI_CANG[bz.month.z][0]);
+    const deLing = (yueMain === me || yueMain === shengMe);
+    /* 得地：月支以外，地支藏干中有与日主同类者（通根） */
+    let deDi = 0;
+    ps.forEach((p, i) => {
+      if (i === 1) return;
+      if (ZHI_CANG[p.z].some(g => GAN_WX(g) === me)) deDi++;
+    });
+    /* 得势：天干（除日干）中同我或生我者 */
+    let deShi = 0;
+    ps.forEach((p, i) => {
+      if (i === 2) return;
+      const gw = GAN_WX(p.g);
+      if (gw === me || gw === shengMe) deShi++;
+    });
+
+    const strong = ratio >= 0.5;
     let fav = strong ? [keMe, woKe, woSheng] : [shengMe, me];
     let unf = strong ? [shengMe, me] : [keMe, woKe, woSheng];
     const tiaohou = [11, 0, 1].indexOf(bz.month.z) >= 0 ? 1 : ([5, 6, 7].indexOf(bz.month.z) >= 0 ? 4 : -1);
@@ -1156,9 +1195,11 @@ body{
     unf = unf.filter(w => fav.indexOf(w) < 0);
 
     return {
-      counts: cnt, support: support, total: total,
+      counts: raw.map(v => Math.round(v * 10) / 10),
+      force: force.map(v => Math.round(v * 100) / 100),
+      ratio: Math.round(ratio * 100) / 100,
       strong: strong, strengthText: strong ? '身强' : '身弱',
-      deLing: monthSupport,
+      deLing: deLing, deDi: deDi, deShi: deShi,
       fav: fav, unf: unf, tiaohou: tiaohou,
       favText: fav.map(w => WX_NAME[w]).join('、'),
       unfText: unf.map(w => WX_NAME[w]).join('、')
@@ -1216,7 +1257,7 @@ body{
 
   return {
     gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
-    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX,
+    baziOf, shiShen, dayRelations, xunKong, baziWuxing, scoreOf, WX_NAME, ZHI_WX, ZHI_CANG,
     qiYun, daYun, liuNian,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
@@ -1918,7 +1959,8 @@ window.XiejiMingli = {
     var rows = '';
     if (wx) {
       rows += '<div class="dress-txt" style="margin-top:10px">日主 <b>' + GAN[b.dayMaster] + '</b>（' +
-        esc(wx.strengthText) + (wx.deLing ? '·得令' : '·失令') + '）；今日' +
+        esc(wx.strengthText) + '·支持 ' + Math.round(wx.ratio * 100) + '%' +
+        '·' + (wx.deLing ? '得令' : '失令') + '·得地' + wx.deDi + '·得势' + wx.deShi + '）；今日' +
         esc(r.dayGZText) + '日，为你的「<b>' + rel.shiShen + '</b>」。<span class="mini">' +
         esc(SHISHEN_TXT[rel.shiShen] || '') + '</span></div>';
       rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五「生我者壬癸水…尅我者庚辛金」；旺衰取卷二「要以中和為貴」之说。</div>';
@@ -1950,6 +1992,13 @@ window.XiejiMingli = {
           '<div class="dress-txt">' + dy.startAge.toFixed(1) + ' 岁起运（' + (dy.forward ? '顺' : '逆') + '行）' +
           '　当前大运 <b>' + esc(cur.text) + '</b>（' + cur.from + '–' + cur.to + ' 岁）' +
           '　流年 <b>' + esc(ln.text) + '</b></div>' +
+          (function () {
+            var d2 = E.dayRelations(cur.gan, cur.zhi, S.bz);
+            var rel = d2.list.filter(function (x) { return x.type === '冲' || x.type === '刑' || x.type === '天克地冲'; });
+            return '<div class="dress-txt mini">大运看地支：' + ZHI[cur.zhi] + '（' + E.WX_NAME[E.ZHI_WX[cur.zhi]] + '）' +
+              (rel.length ? '，冲刑命局：' + rel.map(function (x) { return x.text; }).join('、') : '，与命局无冲刑') +
+              '；运干为你的「' + E.shiShen(S.bz.dayMaster, cur.gan) + '」</div>';
+          })() +
           '<div class="dress-txt mini">大运：' + dy.list.map(function (d2) { return esc(d2.text); }).join(' ') + '</div>';
       } catch (e) { }
     }
