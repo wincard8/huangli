@@ -1498,8 +1498,10 @@ window.XiejiQuotes = {
 
     /* 结论 */
     var diff = trad - score;
+    var harsh2 = rel ? rel.list.filter(function (t) { return t.type === '冲' || t.type === '刑' || t.type === '天克地冲' || t.type === '自刑'; }) : [];
     var head, sub;
-    if (diff >= 25) { head = '大家都在抢的吉日'; sub = '其实不太适合你'; }
+    if (harsh2.length) { head = '今天在冲你的命局'; sub = '传统评分再高，也该避开'; }
+    else if (diff >= 25) { head = '大家都在抢的吉日'; sub = '其实不太适合你'; }
     else if (diff <= -15) { head = '别人眼里平常的一天'; sub = '对你却有不少助力'; }
     else { head = '传统与你的看法'; sub = '大体一致'; }
 
@@ -1527,7 +1529,12 @@ window.XiejiQuotes = {
 
     x.font = '26px sans-serif';
     x.fillStyle = '#4A4239';
-    var yy = 650;
+    var yy = 672;
+    x.fillStyle = '#A2968A';
+    x.font = '20px sans-serif';
+    x.fillText('为什么', W / 2, 640);
+    x.font = '26px sans-serif';
+    x.fillStyle = '#4A4239';
     reasons.slice(0, 3).forEach(function (t) {
       x.fillText('· ' + t, W / 2, yy);
       yy += 46;
