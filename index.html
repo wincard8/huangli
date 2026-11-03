@@ -3341,7 +3341,10 @@ window.XiejiQiongtong = {
             return g + '（' + E.WX_NAME[[0, 0, 1, 1, 2, 2, 3, 3, 4, 4][GAN.indexOf(g)]] + '）';
           }).join('、') + '</b>' : '') +
           (cell.exact ? '' : '　<span class="mini">（此月无专条，取季论）</span>') +
-          '　<span class="mini">已并入喜用</span>' + '</div>' +
+          '　<span class="mini">仅作当值加权，不改写喜忌</span>' +
+          (S.thConf && S.thConf.length ? '　<span class="mini" style="color:var(--red)">与旺衰相左（' +
+            S.thConf.map(function (w) { return E.WX_NAME[w]; }).join('、') + '为所忌），宜参酌</span>' : '') +
+          '</div>' +
           '<div class="quote" style="margin-top:6px">' + esc(cell.text.slice(0, 120)) + '…</div>';
       })();
     }
@@ -3934,11 +3937,12 @@ window.XiejiQiongtong = {
     S.th = tiaohouOf(S.bz);
     var f0 = (S.favManual && S.favManual.length) ? S.favManual.slice() : (S.wx ? S.wx.fav.slice() : []);
     var u0 = (S.unfManual && S.unfManual.length) ? S.unfManual.slice() : (S.wx ? S.wx.unf.slice() : []);
-    /* 调候用神并入喜用（原文明定者优先，不再算作忌） */
+    /* 调候不再改写喜忌，只按"当值加权"计入分数；与旺衰相左时明示 */
+    S.thConf = [];
     if (S.th) {
-      if (S.th.main !== null && f0.indexOf(S.th.main) < 0) f0.push(S.th.main);
-      if (S.th.second !== null && f0.indexOf(S.th.second) < 0) f0.push(S.th.second);
-      u0 = u0.filter(function (w) { return f0.indexOf(w) < 0; });
+      [S.th.main, S.th.second].forEach(function (w) {
+        if (w !== null && w !== undefined && u0.indexOf(w) >= 0) S.thConf.push(w);
+      });
     }
     S.favNow = f0.length ? f0 : null;
     S.unfNow = u0;
