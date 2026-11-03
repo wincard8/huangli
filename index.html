@@ -27,8 +27,8 @@ body{
   box-shadow:0 20px 60px rgba(60,40,20,.18);display:flex;flex-direction:column}
 @media (max-width:430px){#app{width:100vw;height:100vh;box-shadow:none}body{background:var(--paper)}}
 
-.navbar{height:44px;display:flex;align-items:center;justify-content:center;font-size:16px;
-  font-weight:600;letter-spacing:2px;color:var(--ink);position:sticky;top:0;z-index:30;
+.navbar{height:52px;display:flex;align-items:center;justify-content:center;font-size:22px;
+  font-weight:600;letter-spacing:3px;color:var(--ink);position:sticky;top:0;z-index:30;
   background:rgba(247,242,233,.92);backdrop-filter:blur(8px)}
 .scroll{flex:1;overflow-y:auto;padding-bottom:74px;-webkit-overflow-scrolling:touch}
 .wrap{padding:0 14px}
@@ -66,6 +66,10 @@ body{
   color:#8C1620;padding:9px 12px;border-radius:8px;font-size:12.5px;line-height:1.6}
 .dateinput{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
   background:#fff;font-family:inherit;font-size:14px;color:var(--ink);margin-top:8px}
+.birth-row{display:flex;gap:8px;margin-top:4px}
+.bsel{flex:1;min-width:0;padding:10px 6px;border:1px solid var(--line);border-radius:8px;
+  background:#fff;font-family:inherit;font-size:15px;color:var(--ink);-webkit-appearance:none;appearance:none;
+  text-align:center}
 .yiji-txt{font-size:14px;color:var(--ink);letter-spacing:.3px;line-height:1.7}
 .yiji-txt span{margin-right:8px;white-space:nowrap}
 
@@ -994,8 +998,36 @@ body{
     };
   }
 
+  /* 农历 → 儒略日（逐日扫描该农历年，闰月以 leap 区分） */
+  function lunarToJDN(y, m, d, leap) {
+    const start = gregorianToJDN(y, 1, 10);
+    const limit = start + 430;
+    for (let jdn = start; jdn < limit; jdn++) {
+      const L = toLunar(jdn);
+      if (L.year === y && L.month === m && L.day === d && !!L.leap === !!leap) return jdn;
+    }
+    return null;
+  }
+  /* 某农历年的月份表：[{month, leap, days}] */
+  function lunarMonthsOf(y) {
+    const start = lunarToJDN(y, 1, 1, false);
+    if (start === null) return [];
+    const out = [];
+    let cur = null;
+    for (let jdn = start; jdn < start + 400; jdn++) {
+      const L = toLunar(jdn);
+      if (L.year !== y) { if (cur) cur.days = jdn - cur.start; break; }
+      if (!cur || cur.start !== L.monthStart) {
+        if (cur) cur.days = L.monthStart - cur.start;
+        cur = { month: L.month, leap: L.leap, start: L.monthStart, days: 0 };
+        out.push(cur);
+      }
+    }
+    return out;
+  }
+
   return {
-    gregorianToJDN, jdnToGregorian, toLunar, computeDay,
+    gregorianToJDN, jdnToGregorian, toLunar, lunarToJDN, lunarMonthsOf, computeDay,
     sunLongitude, solarTermJDN, TERM_NAMES, newMoonJDN,
     GAN, ZHI, ANIMALS, JIANCHU, ORDER, GLOSS, JIANCHU_DATA, deltaT
   };
@@ -1072,7 +1104,8 @@ body{
     y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate(),
     tab: 'home', sheet: '', calY: now.getFullYear(), calM: now.getMonth() + 1,
     tsTab: 'yi', thing: 0, days: 60, quoteOpen: -1,
-    zodiac: null, zMode: 'range', zMonth: ''
+    zodiac: null, zMode: 'range', zMonth: '',
+    bY: 1990, bM: 1, bD: 1, bLeap: false
   };
   try {
     var _z = localStorage.getItem('xieji.zodiac');
@@ -1331,6 +1364,7 @@ body{
 
     return '<div class="wrap">' +
       '<div class="datebar"><span>' + S.y + '年' + S.m + '月' + S.d + '日</span>' +
+      '<span class="pick" data-act="sheet:birth">选择生日<span class="caret"></span></span>' +
       '<span class="pick" data-act="sheet:cal">选择日期<span class="caret"></span></span></div>' +
 
       '<div class="hero"><div class="hero-top">' +
@@ -1545,9 +1579,8 @@ body{
     return '<div class="wrap">' +
       '<div class="card" style="margin-top:12px"><div class="card-hd"><div class="card-title">我的生肖</div>' +
       '<div class="card-more">用于冲煞提示</div></div><div class="card-body">' +
-      '<div class="dress-txt">填出生日期，按立春换年推生肖。当天日支冲你的生肖时，首页会出现红条提示。</div>' +
-      '<input type="date" id="bdate" class="dateinput" min="1900-01-01" max="2100-12-31">' +
-      '<button class="btn ghost" data-act="savebdate">保存</button>' +
+      '<div class="dress-txt">按<b>农历</b>填生日，程序按立春换年推生肖。当天日支冲你的生肖时，首页会出现红条提示。</div>' +
+      '<button class="btn ghost" data-act="sheet:birth">选择生日（农历）</button>' +
       '<div class="mini" style="margin-top:8px">当前：' +
       (S.zodiac !== null && S.zodiac !== undefined ? '属' + ANIMALS[S.zodiac] + '（' + ZHI[S.zodiac] + '）' : '未设置') +
       '</div></div></div>' +
@@ -1584,6 +1617,27 @@ body{
 
   /* ---------------- 弹层 ---------------- */
   function sheetHtml(r) {
+    if (S.sheet === 'birth') {
+      var ms = E.lunarMonthsOf(S.bY);
+      var yOpts = '';
+      for (var yy = 2100; yy >= 1900; yy--) yOpts += '<option value="' + yy + '"' + (yy === S.bY ? ' selected' : '') + '>' + yy + ' 年</option>';
+      var mOpts = ms.map(function (m, i) {
+        var on = (m.month === S.bM && !!m.leap === !!S.bLeap);
+        return '<option value="' + i + '"' + (on ? ' selected' : '') + '>' + (m.leap ? '闰' : '') + lunarMonthName(m.month) + '</option>';
+      }).join('');
+      var curM = ms.filter(function (m) { return m.month === S.bM && !!m.leap === !!S.bLeap; })[0] || ms[0];
+      var maxD = curM ? curM.days : 30;
+      var dOpts = '';
+      for (var dd = 1; dd <= maxD; dd++) dOpts += '<option value="' + dd + '"' + (dd === S.bD ? ' selected' : '') + '>' + lunarDayName(dd) + '</option>';
+      return '<div class="sheet-hd"><span>选择生日</span><span class="chip" data-act="closesheet">关闭</span></div>' +
+        '<div class="birth-row">' +
+        '<select class="bsel" id="by">' + yOpts + '</select>' +
+        '<select class="bsel" id="bm">' + mOpts + '</select>' +
+        '<select class="bsel" id="bd">' + dOpts + '</select>' +
+        '</div>' +
+        '<div class="mini" style="margin-top:10px">按<b>农历</b>填生日（闰月另列）。程序按立春换年推生肖；当天日支冲你的生肖时，首页出现红条。</div>' +
+        '<button class="btn" data-act="savebirth" style="margin-top:12px">保存生日</button>';
+    }
     if (S.sheet === 'cal') {
       var first = new Date(S.calY, S.calM - 1, 1);
       var startW = first.getDay();
@@ -1714,23 +1768,40 @@ body{
     if (k === 'quote') { S.quoteOpen = +p[1]; S.sheet = 'quote'; render(); return; }
     if (k === 'ics') { downloadICS(); return; }
     if (k === 'icsh') { downloadHoursICS(); return; }
-    if (k === 'savebdate') {
-      var bd = document.getElementById('bdate');
-      if (!bd || !bd.value) { toast('请先选出生日期'); return; }
-      var pp = bd.value.split('-').map(Number);
+    if (k === 'savebirth') {
+      var jdnB = E.lunarToJDN(S.bY, S.bM, S.bD, S.bLeap);
+      if (jdnB === null) { toast('没找到这个农历日子'); return; }
+      var gB = E.jdnToGregorian(jdnB);
       try {
-        var rb = E.computeDay(pp[0], pp[1], pp[2]);
+        var rb = E.computeDay(gB.year, gB.month, gB.day);
         saveZodiac(rb.yearGZ % 12);
-        toast('已设为属' + ANIMALS[rb.yearGZ % 12] + '（' + ZHI[rb.yearGZ % 12] + '）');
+        S.sheet = '';
+        toast('农历' + S.bY + '年' + (S.bLeap ? '闰' : '') + lunarMonthName(S.bM) + lunarDayName(S.bD) +
+          ' → 属' + ANIMALS[rb.yearGZ % 12]);
         render(); return;
       } catch (e) { toast('该日期超出范围（1900–2100）'); return; }
     }
   });
 
   document.addEventListener('change', function (e) {
-    if (e.target && e.target.id === 'zmonth' && e.target.value) {
-      S.zMonth = e.target.value; S.zMode = 'month'; render();
+    var id = e.target && e.target.id;
+    if (id === 'zmonth' && e.target.value) {
+      S.zMonth = e.target.value; S.zMode = 'month'; render(); return;
     }
+    if (id === 'by') {
+      S.bY = +e.target.value;
+      var ms1 = E.lunarMonthsOf(S.bY);
+      var cur1 = ms1.filter(function (m) { return m.month === S.bM && !!m.leap === !!S.bLeap; })[0] || ms1[0];
+      if (cur1) { S.bM = cur1.month; S.bLeap = cur1.leap; S.bD = Math.min(S.bD, cur1.days); }
+      render(); return;
+    }
+    if (id === 'bm') {
+      var ms2 = E.lunarMonthsOf(S.bY);
+      var m2 = ms2[+e.target.value];
+      if (m2) { S.bM = m2.month; S.bLeap = m2.leap; S.bD = Math.min(S.bD, m2.days); }
+      render(); return;
+    }
+    if (id === 'bd') { S.bD = +e.target.value; return; }
   });
 
   function bootHash() {
