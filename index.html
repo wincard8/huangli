@@ -3091,8 +3091,9 @@ window.XiejiQiongtong = {
         '·' + (wx.deLing ? '得令' : '失令') + '·得地' + wx.deDi + '·得势' + wx.deShi + '）；今日' +
         esc(r.dayGZText) + '日，为你的「<b>' + rel.shiShen + '</b>」。<span class="mini">' +
         esc(SHISHEN_TXT[rel.shiShen] || '') + '</span></div>';
-      rows += '<div class="dress-txt">格局：<b>' + esc(E.geJu(b).name) + '</b>（月令' +
-        esc(ZHI[b.month.z]) + '·' + esc(E.geJu(b).by) + esc(E.GAN[E.geJu(b).gan]) + '）</div>';
+      var _gj = E.geJu(b);
+      rows += '<div class="dress-txt">格局：<b>' + esc(_gj.name) + '</b>（月令' + esc(ZHI[_gj.zhi]) + '·' +
+        (_gj.by === '月令临官' ? '临官' : _gj.by === '月令帝旺' ? '帝旺' : _gj.by + esc(E.GAN[_gj.gan])) + '）</div>';
       rows += '<div class="mini" style="margin-top:2px">十神据《三命通会》卷五；旺衰取卷二「要以中和為貴」；取格据《渊海子平》「月支取格，乃分贵贱」。</div>';
       rows += '<div class="dress-txt">五行：' + E.WX_NAME.map(function (n, i) {
         return n + wx.counts[i];
