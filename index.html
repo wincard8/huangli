@@ -876,7 +876,11 @@ body{
        三煞／月刑「與天德月德天德合月德合併，止忌安撫邊境、選將、訓兵、出師、求醫療病，餘皆不忌」
        月建「與天德月德天德合月德合天赦月恩四相併，止忌營建宫室…破土，餘皆不忌」 */
     const DE_SHA_JI = ['安抚边境', '选将', '训兵', '出师', '求医'];
-    const deSha = hasDe && shanSha.length > 0 && !hardPo && !jianDay;
+    /* 卷十明文：三煞／月刑「與天德月德…併，止忌安撫邊境、選將、訓兵、出師、求醫療病，餘皆不忌」
+       劫煞另有一条：「寅申月又值六合，止忌（同上五項），餘皆不忌」——故六合亦触发减忌 */
+    const hasLiuhe = ss.some(s => s.name === '六合');
+    const hasJiesha = ss.some(s => s.name === '劫煞');
+    const deSha = (hasDe || (hasLiuhe && hasJiesha)) && shanSha.length > 0 && !hardPo && !jianDay;
     const deJian = hasDe && jianDay && !hardPo;
 
     for (const s of ss) for (const x of s.ji) push(jiSet, x, s.name);
