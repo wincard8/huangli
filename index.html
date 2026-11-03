@@ -69,6 +69,8 @@ body{
 .birth-row{display:flex;gap:8px;margin-top:4px}.bsel{flex:1;min-width:0;padding:10px 6px;border:1px solid var(--line);border-radius:8px;
   background:#fff;font-family:inherit;font-size:15px;color:var(--ink);-webkit-appearance:none;appearance:none;
   text-align:center}
+.tag.tap{cursor:pointer}
+.tag.tap::after{content:"›";margin-left:3px;opacity:.45;font-size:10px}
 .qitem{border-bottom:1px solid var(--line);padding:9px 0}
 .qitem:last-child{border-bottom:0}
 .qitem summary{cursor:pointer;font-size:14.5px;color:var(--ink);list-style:none;outline:none}
@@ -1217,7 +1219,7 @@ window.XiejiQuotes = {
     tab: 'home', sheet: '', calY: now.getFullYear(), calM: now.getMonth() + 1,
     tsTab: 'yi', thing: 0, days: 60, quoteOpen: -1,
     zodiac: null, zMode: 'range', zMonth: '',
-    bY: 1990, bM: 1, bD: 1, bLeap: false
+    bY: 1990, bM: 1, bD: 1, bLeap: false, qName: ''
   };
   try {
     var _z = localStorage.getItem('xieji.zodiac');
@@ -1439,11 +1441,11 @@ window.XiejiQuotes = {
     tags.push('<span class="tag">' + esc(r.jianchuName) + '</span>');
     tags.push('<span class="tag' + (r.level >= 2 ? ' warn' : '') + '">' + esc(r.gradeName) + '·' + esc(r.levelText) + '</span>');
     r.shensha.forEach(function (s) {
-      if (s.kind === '吉') tags.push('<span class="tag">' + esc(s.name) + '</span>');
+      if (s.kind === '吉') tags.push('<span class="tag tap" data-act="yili:' + encodeURIComponent(s.name) + '">' + esc(s.name) + '</span>');
     });
     r.shensha.forEach(function (s) {
-      if (s.kind === '大凶') tags.push('<span class="tag warn">' + esc(s.name) + '</span>');
-      else if (s.kind === '凶') tags.push('<span class="tag warn">' + esc(s.name) + '</span>');
+      if (s.kind === '大凶') tags.push('<span class="tag warn tap" data-act="yili:' + encodeURIComponent(s.name) + '">' + esc(s.name) + '</span>');
+      else if (s.kind === '凶') tags.push('<span class="tag warn tap" data-act="yili:' + encodeURIComponent(s.name) + '">' + esc(s.name) + '</span>');
     });
 
     var idx = isToday() ? Math.floor((new Date().getHours() + 1) / 2) % 12 : 0;
@@ -1753,6 +1755,26 @@ window.XiejiQuotes = {
 
   /* ---------------- 弹层 ---------------- */
   function sheetHtml(r) {
+    if (S.sheet === 'yili') {
+      var Q0 = window.XiejiQuotes || { yili: [] };
+      var ent = (Q0.yili || []).filter(function (x) { return x.name === S.qName; })[0];
+      if (!ent) ent = (Q0.yili || []).filter(function (x) {
+        return x.name.indexOf(S.qName) === 0 || S.qName.indexOf(x.name) === 0;
+      })[0];
+      if (!ent && /^[建除满平定执破危成收开闭]日$/.test(S.qName)) {
+        ent = (Q0.yili || []).filter(function (x) { return x.name === '建除十二神'; })[0];
+      }
+      var cur = r.shensha.filter(function (s) { return s.name === S.qName; })[0];
+      var body = ent
+        ? '<div class="quote">' + esc(ent.text) + '</div>' +
+        '<div class="mini" style="margin-top:8px">出处：' + esc(ent.juan) + '·义例</div>'
+        : '<div class="empty-tip">此煞在义例中无专条（或在卷三~八未收）。</div>';
+      if (cur && cur.cite) {
+        body += '<div class="hinge" style="margin-top:12px">卷十条文</div>' +
+          '<div class="quote" style="margin-top:6px">' + esc(cur.cite) + '</div>';
+      }
+      return '<div class="sheet-hd"><span>' + esc(S.qName) + '</span><span class="chip" data-act="closesheet">关闭</span></div>' + body;
+    }
     if (S.sheet === 'birth') {
       var ms = E.lunarMonthsOf(S.bY);
       var yOpts = '';
@@ -1904,6 +1926,7 @@ window.XiejiQuotes = {
     if (k === 'quote') { S.quoteOpen = +p[1]; S.sheet = 'quote'; render(); return; }
     if (k === 'ics') { downloadICS(); return; }
     if (k === 'icsh') { downloadHoursICS(); return; }
+    if (k === 'yili') { S.qName = decodeURIComponent(p[1] || ''); S.sheet = 'yili'; render(); return; }
     if (k === 'savebirth') {
       var jdnB = E.lunarToJDN(S.bY, S.bM, S.bD, S.bLeap);
       if (jdnB === null) { toast('没找到这个农历日子'); return; }
