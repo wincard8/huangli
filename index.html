@@ -1543,14 +1543,22 @@ body{
     ].map(function (x) { return '<div class="st"><b>✓</b> ' + x[0] + '</div>'; }).join('');
 
     return '<div class="wrap">' +
-      '<div class="card" style="margin-top:12px"><div class="card-hd"><div class="card-title">算法与口径</div></div>' +
+      '<div class="card" style="margin-top:12px"><div class="card-hd"><div class="card-title">我的生肖</div>' +
+      '<div class="card-more">用于冲煞提示</div></div><div class="card-body">' +
+      '<div class="dress-txt">填出生日期，按立春换年推生肖。当天日支冲你的生肖时，首页会出现红条提示。</div>' +
+      '<input type="date" id="bdate" class="dateinput" min="1900-01-01" max="2100-12-31">' +
+      '<button class="btn ghost" data-act="savebdate">保存</button>' +
+      '<div class="mini" style="margin-top:8px">当前：' +
+      (S.zodiac !== null && S.zodiac !== undefined ? '属' + ANIMALS[S.zodiac] + '（' + ZHI[S.zodiac] + '）' : '未设置') +
+      '</div></div></div>' +
+      '<div class="card"><div class="card-hd"><div class="card-title">算法与口径</div></div>' +
       '<div class="card-body">' +
       '<div class="dress-txt">宜忌条文出自《钦定协纪辨方书》卷十「宜忌」。建除十二神、月建（土府）、月破（大耗）、月厌、三煞、月刑、月害、大时、天吏、小耗、九空、天德月德、天赦、三合六合，皆按卷十原文与起例推算，每条都可点开看原文。</div>' +
       '<div class="dress-txt">时辰：十二值神（青龙…勾陈）按「子午日青龙在申、丑未日在戌、寅申日在子、卯酉日在寅、辰戌日在辰、巳亥日在午」顺行。时之宜忌以日为体、以黄黑道为用。</div>' +
       '<div class="dress-txt">历法：北京时间，定朔定气，无中气置闰；年柱以立春、月柱以节为界。节气精度约 ±15 分钟，交节近子夜时可能差一日。</div>' +
       '<div class="dress-txt">可靠区间 1900–2100。全部实时推算，没有预生成表；1929 年前中国用平朔与北京地方时，个别农历日可能与旧历书差一天。</div>' +
       '<div class="hr"></div>' +
-      '<div class="mini">等第：依卷十「月表」六等（上·上次·中·中次·下·下下）判日，遇德则依判词进退；月破固定最下。判词为「从宜亦从忌」者，只把真正两见的条目单列一栏，不再在宜忌两处重复。未实现：天愿月恩四相时德等吉神、年表月表方位、个人本命；财神福神喜神方位各家口诀不一，不列。</div>' +
+      '<div class="mini">等第：依卷十「月表」六等（上·上次·中·中次·下·下下）判日，遇德则依判词进退；月破固定最下。判词为「从宜亦从忌」者，两见的条目只列于忌、不再重复列于宜。未实现：天愿月恩四相时德等吉神、年表月表方位、个人本命；财神福神喜神方位各家口诀不一，不列。</div>' +
       '</div></div>' +
 
       '<div class="card"><div class="card-hd"><div class="card-title">历法自检</div><div class="card-more">对照香港天文台</div></div>' +
@@ -1565,15 +1573,6 @@ body{
       '<button class="btn ghost" data-act="icsh">导出时辰（未来 14 天 · 168 条）</button>' +
       '<div class="mini" style="margin-top:8px">iPhone：下载后用「文件」App 点开该 .ics → 选「日历」→ 添加全部。建议先新建一个「黄历」日历再导入，方便一键隐藏。</div>' +
       '</div></div>' +
-
-      '<div class="card"><div class="card-hd"><div class="card-title">我的生肖</div>' +
-      '<div class="card-more">用于冲煞提示</div></div><div class="card-body">' +
-      '<div class="dress-txt">填出生日期，按立春换年推生肖。当天日支冲你的生肖时，首页会出现红条提示。</div>' +
-      '<input type="date" id="bdate" class="dateinput" min="1900-01-01" max="2100-12-31">' +
-      '<button class="btn ghost" data-act="savebdate">保存</button>' +
-      '<div class="mini" style="margin-top:8px">当前：' +
-      (S.zodiac !== null && S.zodiac !== undefined ? '属' + ANIMALS[S.zodiac] + '（' + ZHI[S.zodiac] + '）' : '未设置') +
-      '</div></div></div>' +
 
       '<div class="card"><div class="card-hd"><div class="card-title">说明</div></div><div class="card-body">' +
       '<div class="dress-txt">黄历属传统民俗资料。《协纪辨方书》御制序自言"如曰如是则吉，如是则凶，如是则福，如是则祸，则明者所弗道也"；康熙谕旨亦称"事属渺茫难以凭信"。本程序只做规则复现，不主张吉凶实效，不构成医疗、投资、婚恋等任何建议。</div>' +
