@@ -3913,14 +3913,26 @@ window.XiejiQiongtong = {
       var maxD = curM ? curM.days : 30;
       var dOpts = '';
       for (var dd = 1; dd <= maxD; dd++) dOpts += '<option value="' + dd + '"' + (dd === S.bD ? ' selected' : '') + '>' + lunarDayName(dd) + '</option>';
+      var HRANGE = ['23:00–00:59', '01:00–02:59', '03:00–04:59', '05:00–06:59', '07:00–08:59', '09:00–10:59',
+        '11:00–12:59', '13:00–14:59', '15:00–16:59', '17:00–18:59', '19:00–20:59', '21:00–22:59'];
       var hOpts = '<option value=""' + (S.bHz === null || S.bHz === undefined ? ' selected' : '') + '>时辰不详</option>';
-      for (var hi = 0; hi < 12; hi++) hOpts += '<option value="' + hi + '"' + (hi === S.bHz ? ' selected' : '') + '>' + ZHI[hi] + '时</option>';
-      return '<div class="sheet-hd"><span>选择生日</span><span class="chip" data-act="closesheet">关闭</span></div>' +
-        '<div class="birth-row">' +
+      for (var hi = 0; hi < 12; hi++) hOpts += '<option value="' + hi + '"' + (hi === S.bHz ? ' selected' : '') + '>' +
+        ZHI[hi] + '时（' + HRANGE[hi] + '）</option>';
+      var mode = S.bMode || 'lunar';
+      var modeToggle = '<div class="frow" style="margin:2px 0 10px">' +
+        '<span class="fchip' + (mode === 'lunar' ? ' on' : '') + '" data-act="bmode:lunar">农历</span>' +
+        '<span class="fchip' + (mode === 'solar' ? ' on' : '') + '" data-act="bmode:solar">公历</span></div>';
+      var lunarRow = '<div class="birth-row">' +
         '<select class="bsel" id="by">' + yOpts + '</select>' +
         '<select class="bsel" id="bm">' + mOpts + '</select>' +
         '<select class="bsel" id="bd">' + dOpts + '</select>' +
-        '</div>' +
+        '</div>';
+      var bs0 = birthSolar();
+      var solarRow = '<input type="date" id="bsolar" class="dateinput" min="1900-01-01" max="2100-12-31" value="' +
+        (bs0 ? bs0.year + '-' + pad(bs0.month) + '-' + pad(bs0.day) : '') + '">';
+      return '<div class="sheet-hd"><span>选择生日</span><span class="chip" data-act="closesheet">关闭</span></div>' +
+        modeToggle +
+        (mode === 'solar' ? solarRow : lunarRow) +
         '<div class="birth-row" style="margin-top:8px">' +
         '<select class="bsel" id="bh" style="flex:1">' + hOpts + '</select>' +
         '<select class="bsel" id="bg" style="flex:1">' +
@@ -3928,7 +3940,10 @@ window.XiejiQiongtong = {
         '<option value="0"' + (S.bMale ? '' : ' selected') + '>女</option>' +
         '</select>' +
         '</div>' +
-        '<div class="mini" style="margin-top:10px">按<b>农历</b>填生日（闰月另列）。时辰填出生时辰；不确定可留空，四柱只缺时柱。生肖按农历年（春节）定。</div>' +
+        '<div class="mini" style="margin-top:10px">' + (mode === 'solar'
+          ? '按<b>公历</b>填生日，程序自动转成农历与四柱。'
+          : '按<b>农历</b>填生日（闰月另列）。') +
+        '时辰可留空（四柱只缺时柱）。生肖按农历年（春节）定。</div>' +
         '<button class="btn" data-act="savebirth" style="margin-top:12px">保存生日</button>';
     }
     if (S.sheet === 'cal') {
@@ -4122,6 +4137,7 @@ window.XiejiQiongtong = {
       render(); return;
     }
     if (k === 'yili') { S.qName = decodeURIComponent(p[1] || ''); S.sheet = 'yili'; render(); return; }
+    if (k === 'bmode') { S.bMode = (p[1] === 'solar') ? 'solar' : 'lunar'; render(); return; }
     if (k === 'savebirth') {
       var jdnB = E.lunarToJDN(S.bY, S.bM, S.bD, S.bLeap);
       if (jdnB === null) { toast('没找到这个农历日子'); return; }
@@ -4163,6 +4179,16 @@ window.XiejiQiongtong = {
     if (id === 'bd') { S.bD = +e.target.value; return; }
     if (id === 'bh') { S.bHz = e.target.value === '' ? null : +e.target.value; return; }
     if (id === 'bg') { S.bMale = e.target.value === '1'; saveBirth(); render(); return; }
+    if (id === 'bsolar' && e.target.value) {
+      var sp = e.target.value.split('-').map(Number);
+      if (sp.length === 3) {
+        try {
+          var lu = E.toLunar(E.gregorianToJDN(sp[0], sp[1], sp[2]));
+          S.bY = lu.year; S.bM = lu.month; S.bD = lu.day; S.bLeap = !!lu.leap;
+          render(); return;
+        } catch (err) { }
+      }
+    }
   });
 
   function bootHash() {
