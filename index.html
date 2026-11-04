@@ -3302,7 +3302,7 @@ window.XiejiQiongtong = {
   }
 
   function renderList(items) {
-    if (!items.length) return '<span class="mini">—</span>';
+    if (!items.length) return '<span class="mini">无</span>';
     return items.map(function (x) {
       return '<span title="协纪原文：' + esc(x.t) + '">' + esc(x.m) + '</span>';
     }).join('');
