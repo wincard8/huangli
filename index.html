@@ -3437,7 +3437,12 @@ window.XiejiQiongtong = {
       })();
     }
     rows += rel.list.length
-      ? '<div class="dress-txt">与命局：' + rel.list.map(function (x) { return esc(x.text); }).join('、') + '</div>'
+      ? '<div class="dress-txt">与命局：' + rel.list.map(function (x) { return esc(x.text); }).join('、') +
+        '　<span class="mini">（' + rel.list.map(function (x) {
+          var p = relPlain(x.type);
+          return esc(x.type) + '＝' + esc(p.t);
+        }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join('；') + '）</span>' +
+        ' <span class="chip" data-act="sheet:relhelp" style="padding:2px 8px;font-size:11.5px">?</span></div>'
       : '<div class="dress-txt">与命局无冲、无刑、无合、无害。</div>';
     if (rel.kongHit.length) {
       rows += '<div class="dress-txt">今日旬空 ' + rel.kong.map(function (z) { return ZHI[z]; }).join('') +
@@ -3554,7 +3559,7 @@ window.XiejiQiongtong = {
     if (harsh.length) {
       var main = harsh[0];
       var pl = REL_PLAIN[main.type] || REL_PLAIN['冲'];
-      var more = harsh.length > 1 ? '（另外还有' + harsh.slice(1).map(function (x) { return esc(x.type); }).join('、') + '）' : '';
+      var more = harsh.length > 1 ? '；另外还' + harsh.slice(1).map(function (x) { return esc(x.text); }).join('、') : '';
       alertHtml = '<div class="alert"><b>今天和你的八字「' + esc(pl.t) + '」</b>：' +
         esc(main.text) + more + '。<br>' +
         '<span class="alert-plain">大白话：' + esc(pl.p) + '</span><br>' +
