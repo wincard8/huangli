@@ -64,12 +64,6 @@ body{
 
 .alert{margin-top:10px;background:rgba(179,32,42,.08);border-left:3px solid var(--red);
   color:#8C1620;padding:9px 12px;border-radius:8px;font-size:12.5px;line-height:1.6}
-.alert b{font-weight:600}
-.alert-plain{color:#6B4A46;font-size:12px;display:inline-block;margin-top:2px}
-.alert .chip{margin-top:8px}
-.relrow{padding:10px 0;border-bottom:1px dotted var(--line)}
-.relrow:last-child{border-bottom:0}
-.relname{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:2px}
 .dateinput{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
   background:#fff;font-family:inherit;font-size:14px;color:var(--ink);margin-top:8px}
 .birth-row{display:flex;gap:8px;margin-top:4px}.bsel{flex:1;min-width:0;padding:10px 6px;border:1px solid var(--line);border-radius:8px;
@@ -2945,26 +2939,6 @@ window.XiejiQiongtong = {
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
-  /* 术语的白话对照：冲、刑、害、破、合 */
-  var REL_PLAIN = {
-    '冲': { t: '正面对撞', p: '像两股劲顶在一起，这天事情容易反复、改期、来回折腾。', a: '重要的约、合同、行程别卡死在这天；能挪就挪，挪不了就多留余量。' },
-    '天克地冲': { t: '正面硬碰', p: '干支都顶上了，变动比单纯相冲更明显。', a: '这天不适合定盘子（签约、动土、开张、远行）；非办不可就挑你分数高的时辰。' },
-    '刑': { t: '互相别扭', p: '像门轴生锈，小事也费劲——容易说拧、起口角、手续卡住。', a: '少争辩，重要沟通留文字；别指望别人一次配合到位。' },
-    '自刑': { t: '自己跟自己较劲', p: '容易钻牛角尖、反复改主意。', a: '别急着拍板，隔一天再看。' },
-    '害': { t: '背后被拖', p: '表面看不出，底下容易延误、被人拖后腿。', a: '别指望对方准时，自己多留一手。' },
-    '破': { t: '拆台', p: '说好的事容易变卦，合作容易散。', a: '不签长约、不合伙投钱。' },
-    '合': { t: '合得来', p: '有人帮衬，事情谈得顺。', a: '适合谈合作、见人、定亲、签合同。' }
-  };
-  var REL_HELP = [
-    ['冲', '正面对撞', '两个地支正好相反（如子对午、巳对亥），像两辆车对开。主「变」：改期、搬迁、行程变动。', '别把死约定卡在这天。'],
-    ['刑', '互相别扭', '两支凑一起就相互拧着（如寅刑巳、子刑卯）。主「卡」：手续反复、话说拧、容易起口角。', '少争辩，多留文字凭据。'],
-    ['害', '背后被拖', '表面无事，暗中损耗。主「拖」：延误、小人、到账慢。', '自己多留一手，别全托别人。'],
-    ['破', '拆台', '刚成的事容易散。主「散」：合作变卦、计划泡汤。', '不签长约、不合伙投钱。'],
-    ['合', '合得来', '两支相合成局（如子丑、寅亥）。主「顺」：有人帮、谈得成。', '适合见人、谈事、定亲。'],
-    ['空亡', '落空', '这一旬里有两个支是空的。主「虚」：约了变卦、许的愿不落地。', '别信口头承诺，落字为凭。']
-  ];
-
-  function relPlain(type) { return REL_PLAIN[type] || REL_PLAIN['冲']; }
   function isToday() {
     var t = new Date();
     return t.getFullYear() === S.y && t.getMonth() + 1 === S.m && t.getDate() === S.d;
@@ -3437,12 +3411,7 @@ window.XiejiQiongtong = {
       })();
     }
     rows += rel.list.length
-      ? '<div class="dress-txt">与命局：' + rel.list.map(function (x) { return esc(x.text); }).join('、') +
-        '　<span class="mini">（' + rel.list.map(function (x) {
-          var p = relPlain(x.type);
-          return esc(x.type) + '＝' + esc(p.t);
-        }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join('；') + '）</span>' +
-        ' <span class="chip" data-act="sheet:relhelp" style="padding:2px 8px;font-size:11.5px">?</span></div>'
+      ? '<div class="dress-txt">与命局：' + rel.list.map(function (x) { return esc(x.text); }).join('、') + '</div>'
       : '<div class="dress-txt">与命局无冲、无刑、无合、无害。</div>';
     if (rel.kongHit.length) {
       rows += '<div class="dress-txt">今日旬空 ' + rel.kong.map(function (z) { return ZHI[z]; }).join('') +
@@ -3557,18 +3526,10 @@ window.XiejiQiongtong = {
     var clash = (S.zodiac !== null && S.zodiac !== undefined && r.dayZhi === (S.zodiac + 6) % 12);
     var alertHtml = '';
     if (harsh.length) {
-      var main = harsh[0];
-      var pl = REL_PLAIN[main.type] || REL_PLAIN['冲'];
-      var more = harsh.length > 1 ? '；另外还' + harsh.slice(1).map(function (x) { return esc(x.text); }).join('、') : '';
-      alertHtml = '<div class="alert"><b>今天和你的八字「' + esc(pl.t) + '」</b>：' +
-        esc(main.text) + more + '。<br>' +
-        '<span class="alert-plain">大白话：' + esc(pl.p) + '</span><br>' +
-        '<span class="alert-plain">怎么办：' + esc(pl.a) + '</span>' +
-        '<span class="chip" data-act="sheet:relhelp" style="margin-top:8px">这些词什么意思？</span></div>';
+      alertHtml = '<div class="alert">今日' + esc(r.dayGZText) + '日，与你的命局：' +
+        harsh.map(function (x) { return esc(x.text); }).join('、') + '。遇冲刑之日，大事宜避。</div>';
     } else if (clash) {
-      alertHtml = '<div class="alert"><b>今天冲你的生肖</b>（' + esc(ANIMALS[(r.dayZhi + 6) % 12]) + '）：' +
-        '<span class="alert-plain">大白话：这天容易和你犯冲，事情爱反复、来回折腾。</span>' +
-        '<span class="alert-plain">怎么办：别把重要约定、行程卡死在这天，能挪就挪。</span></div>';
+      alertHtml = '<div class="alert">今日冲' + esc(ANIMALS[(r.dayZhi + 6) % 12]) + '（你的生肖），大事宜避；冲煞之日，只宜小事。</div>';
     }
 
     return '<div class="wrap">' +
@@ -3972,18 +3933,6 @@ window.XiejiQiongtong = {
           '<div class="quote" style="margin-top:6px">' + esc(cur.cite) + '</div>';
       }
       return '<div class="sheet-hd"><span>' + esc(S.qName) + '</span><span class="chip" data-act="closesheet">关闭</span></div>' + body;
-    }
-    if (S.sheet === 'relhelp') {
-      var rh = REL_HELP.map(function (x) {
-        return '<div class="relrow">' +
-          '<div class="relname">' + esc(x[0]) + '<span class="mini">　' + esc(x[1]) + '</span></div>' +
-          '<div class="dress-txt">' + esc(x[2]) + '</div>' +
-          '<div class="mini">怎么办：' + esc(x[3]) + '</div></div>';
-      }).join('');
-      return '<div class="sheet-hd"><span>这些词什么意思</span><span class="chip" data-act="closesheet">关闭</span></div>' +
-        '<div class="dress-txt" style="margin-bottom:6px">都是传统历法里「这天跟你合不合」的说法，大白话解释如下。看见它们不用紧张，只当一句提醒。</div>' +
-        rh +
-        '<div class="mini" style="margin-top:10px">真要回避的是「分数低 + 又逢冲刑」的日子；只逢冲刑、分数不低，通常只是麻烦一点，不是不能办事。</div>';
     }
     if (S.sheet === 'birth') {
       var ms = E.lunarMonthsOf(S.bY);
